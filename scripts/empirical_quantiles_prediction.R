@@ -26,10 +26,10 @@ countries <- unique(df$country)
 filter_df <- function(df, country, target_variable, h){
   return(df[df$country == country & df$target == target_variable & df$horizon == h,])
 }
-filter_df(df, countries[1], "pcpi_pch", 1)
+filter_df(df, countries[1], "ngdp_rpch", 1)
 
 
-#function to calculate empirical quantiles
+#function to calculate empirical quantiles and prediction interval
 emp_q <- function(df, country, target_variable, R, h, tau){
   #filtered df for given h
   df_filtered <- filter_df(df=df, country=country, target_variable=target_variable,h=h)
@@ -44,6 +44,9 @@ emp_q <- function(df, country, target_variable, R, h, tau){
     tau = numeric(),
     abs_err = numeric(),
     abs_err_quantile = numeric(),
+    prediction = numeric(),
+    lower_point = numeric(),
+    upper_point = numeric(),
     stringsAsFactors = FALSE
   )
   
@@ -72,6 +75,9 @@ emp_q <- function(df, country, target_variable, R, h, tau){
       tau = tau,
       abs_err = df_filtered$abs_err[i],
       abs_err_quantile = quantile,
+      prediction = df_filtered$prediction[i],
+      lower_point = df_filtered$prediction[i] - quantile,
+      upper_point = df_filtered$prediction[i] + quantile,
       stringsAsFactors = FALSE
     )
     df_quantiles <- rbind(df_quantiles, new_row)
@@ -81,6 +87,4 @@ emp_q <- function(df, country, target_variable, R, h, tau){
 }
 
 emp_q(df=df,country = countries[1], target_variable = "ngdp_rpch", R = R, h = 1,tau = tau)
-
-
 
