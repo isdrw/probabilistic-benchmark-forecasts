@@ -12,7 +12,7 @@ df <- read_parquet(file_path)
 ##rolling window
 R <- 11
 ##quantiles
-tau <- 0.9
+tau <-c(0.5,0.8)
 
 
 #data preparation
@@ -30,7 +30,7 @@ filter_df(df, countries[1], "ngdp_rpch", 1)
 
 
 #function to calculate empirical quantiles and prediction interval
-emp_q <- function(df, country, target_variable, R, h, tau){
+calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   #filtered df for given h
   df_filtered <- filter_df(df=df, country=country, target_variable=target_variable,h=h)
   
@@ -86,5 +86,6 @@ emp_q <- function(df, country, target_variable, R, h, tau){
   return(df_quantiles)
 }
 
-emp_q(df=df,country = countries[1], target_variable = "ngdp_rpch", R = R, h = 1,tau = tau)
+calc_pred_interval(df=df,country = countries[1], target_variable = "ngdp_rpch", R = R, h = 1,tau = tau)
+
 
