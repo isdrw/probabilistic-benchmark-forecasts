@@ -108,6 +108,11 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
     stringsAsFactors = FALSE
   )
   
+  #PAVA algorithm function
+  pava_correction <- function(df, countries, target_variables, h, tau){
+    
+  }
+  
   #loop over all combinations of variables
   for(country in countries){
     for (target_variable in target_variables) {
@@ -128,6 +133,8 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
   return(df_output)
 }
 
+
+
 calc_all_pred(
   df = df_training,
   countries = countries,
@@ -136,5 +143,6 @@ calc_all_pred(
   tau = tau,
   R = R
 )
+
 
 
