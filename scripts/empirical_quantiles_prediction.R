@@ -7,20 +7,24 @@ file_path <- r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"
 #read data file
 df <- read_parquet(file_path)
 
-
 #parameters
 ##rolling window
 R <- 11
 ##quantiles
 tau <-c(0.5,0.8)
 
-
 #data preparation
 ##calculating absolute forecast errors
 df$abs_err <- abs(df$prediction-df$tv_1)
 ##countries
 countries <- unique(df$country)
+##target variables
+target_variables <- unique(df$target)
 
+
+#data spliting
+df_training <- df[df$forecast_year <=2012,]
+df_holdout <- df[df$forecast_year >= 2013,]
 
 #filter function for dataframe ("ngdp_rpch" for GDP or "pcpi_pch" for Inflation) 
 filter_df <- function(df, country, target_variable, h){
@@ -86,6 +90,51 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   return(df_quantiles)
 }
 
-calc_pred_interval(df=df,country = countries[1], target_variable = "ngdp_rpch", R = R, h = 1,tau = tau)
+#loop function to calculate all intervals for given sets of countries, target_variables, h, tau
+calc_all_pred <- function(df, countries, target_variables, h, tau, R){
+  #output dataframe
+  df_output <- data.frame(
+    country = character(),
+    target_variable = character(),
+    target_year = numeric(),
+    forecast_year = numeric(),
+    horizon = numeric(),
+    tau = numeric(),
+    abs_err = numeric(),
+    abs_err_quantile = numeric(),
+    prediction = numeric(),
+    lower_point = numeric(),
+    upper_point = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  #loop over all combinations of variables
+  for(country in countries){
+    for (target_variable in target_variables) {
+      for(horizon in h){
+        new_row <- calc_pred_interval(
+          df = df,
+          country = country,
+          target_variable = target_variable,
+          R = R,
+          h = horizon,
+          tau = tau
+        )
+        df_output <- rbind(df_output, new_row)
+      }
+    }
+  }
+  
+  return(df_output)
+}
+
+calc_all_pred(
+  df = df_training,
+  countries = countries,
+  target_variables = target_variables,
+  h = c(0.5, 1.0),
+  tau = tau,
+  R = R
+)
 
 
