@@ -62,12 +62,13 @@ apply_pava_on_errors <- function(df){
             df$target_year==target_year&
             df$target==target_variable&
             df$tau==tau
-          df[mask,"abs_err_quantile"] <- pava_correction(mask,"abs_err_quantile"])
+          df[mask,"abs_err_quantile"] <- pava_correction(df[mask,"abs_err_quantile"])
           
         }
       }
     }
   }
+  return(df)
 }
 
 #function to calculate empirical quantiles and prediction interval
@@ -161,12 +162,16 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
       }
     }
   }
+  #pava correction of abs_err_quantiles
+  df_output <- apply_pava_on_errors(df_output)
+  df_output$lower_point <- df_output$prediction - df_output$abs_err_quantile
+  df_output$upper_point <- df_output$prediction + df_output$abs_err_quantile
   
   return(df_output)
 }
 
 
-
+#TODO eval scores implementation CRPS, log Score, Interval Score
 
 
 calc_all_pred(
