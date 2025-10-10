@@ -33,6 +33,43 @@ filter_df <- function(df, country, target_variable, h){
 filter_df(df, countries[1], "ngdp_rpch", 1)
 
 
+#PAVA algorithm function
+pava_correction <- function(x, tolerance=1e-12){
+  n <- length(x)
+  
+  repeat{
+    violations_found <- FALSE
+    for(i in seq(n-1)){
+      if(x[i] - x[i+1] > tolerance){
+        x[c(i,i+1)] <- mean(c(x[i],x[i+1]))
+        violations_found <- TRUE
+      }
+    }
+    if(violations_found == FALSE){
+      break
+    }
+  }
+  return(x)
+}
+
+#function to apply PAVA algorithm on dataframe to correct abs error violations
+apply_pava_on_errors <- function(df){
+  for(country in countries){
+    for(target_year in df$target_year){
+      for(target_variable in df$target){
+        for(tau in df$tau){
+          mask <- df$country==country&
+            df$target_year==target_year&
+            df$target==target_variable&
+            df$tau==tau
+          df[mask,"abs_err_quantile"] <- pava_correction(mask,"abs_err_quantile"])
+          
+        }
+      }
+    }
+  }
+}
+
 #function to calculate empirical quantiles and prediction interval
 calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   #filtered df for given h
@@ -107,26 +144,6 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
     upper_point = numeric(),
     stringsAsFactors = FALSE
   )
-  
-#TODO:PAVA algorithm function
-pava_correction <- function(x, tolerance=1e-12){
-  n <- length(x)
-  
-  repeat{
-    violations_found <- FALSE
-    for(i in seq(n-1)){
-      if(x[i] - x[i+1] > tolerance){
-        x[c(i,i+1)] <- mean(c(x[i],x[i+1]))
-        violations_found <- TRUE
-      }
-    }
-    if(violations_found == FALSE){
-      break
-    }
-  }
-  return(x)
-}
-
 
   #loop over all combinations of variables
   for(country in countries){
@@ -147,6 +164,8 @@ pava_correction <- function(x, tolerance=1e-12){
   
   return(df_output)
 }
+
+
 
 
 
