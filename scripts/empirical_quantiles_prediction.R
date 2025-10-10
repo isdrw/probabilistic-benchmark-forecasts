@@ -109,29 +109,24 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
   )
   
 #TODO:PAVA algorithm function
-pava_correction <- function(x, depth=0, max_depth=1000){
+pava_correction <- function(x, tolerance=1e-12){
   n <- length(x)
   
-  #recursion max_depth check
-  if(depth > max_depth){
-    warning("max recursion depth reached, partial solution")
-    return(x)
-  }
-  
-  if(n==1){
-    return(x)
-  }
-  
-  for(i in seq(n-1)){
-    if(x[i] - x[i+1] > 1e-12){
-      x[c(i,i+1)] <- mean(c(x[i],x[i+1]))
-      return(pava_correction(x,depth=depth+1,max_depth=max_depth))
-     }  
+  repeat{
+    violations_found <- FALSE
+    for(i in seq(n-1)){
+      if(x[i] - x[i+1] > tolerance){
+        x[c(i,i+1)] <- mean(c(x[i],x[i+1]))
+        violations_found <- TRUE
+      }
+    }
+    if(violations_found == FALSE){
+      break
+    }
   }
   return(x)
 }
-  
-pava_correction(c(5,6,2,3,1,2),max_depth = 2000)
+
 
   #loop over all combinations of variables
   for(country in countries){
