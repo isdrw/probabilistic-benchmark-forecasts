@@ -11,7 +11,7 @@ df <- read_parquet(file_path)
 ##rolling window
 R <- 11
 ##quantiles
-tau <-c(0.5,0.8)
+tau <-0.5
 
 #data preparation
 ##calculating absolute forecast errors
@@ -24,13 +24,23 @@ target_variables <- unique(df$target)
 
 #data spliting
 df_training <- df[df$forecast_year <=2012,]
-df_holdout <- df[df$forecast_year >= 2013,]
+df_holdout <- df[df$forecast_year >= 2013-R,]
 
 #filter function for dataframe ("ngdp_rpch" for GDP or "pcpi_pch" for Inflation) 
 filter_df <- function(df, country, target_variable, h){
   return(df[df$country == country & df$target == target_variable & df$horizon == h,])
 }
-filter_df(df, countries[1], "ngdp_rpch", 1)
+
+
+#function to filter df for given values such as 
+#filter <- list(country=countries[1], target="ngdp_rpch")
+make_mask <- function(df, filters) {
+  mask <- rep(TRUE, nrow(df))
+  for (v in names(filters)) {
+    mask <- mask & (df[[v]] == filters[[v]])
+  }
+  return(mask)
+}
 
 
 #PAVA algorithm function
@@ -58,10 +68,13 @@ apply_pava_on_errors <- function(df){
     for(target_year in df$target_year){
       for(target_variable in df$target){
         for(tau in df$tau){
-          mask <- df$country==country&
-            df$target_year==target_year&
-            df$target==target_variable&
-            df$tau==tau
+          mask <- make_mask(
+            df,
+            list(country=country,
+                 target_year=target_year,
+                 target=target_variable,
+                 tau=tau)
+            )
           df[mask,"abs_err_quantile"] <- pava_correction(df[mask,"abs_err_quantile"])
           
         }
@@ -74,7 +87,15 @@ apply_pava_on_errors <- function(df){
 #function to calculate empirical quantiles and prediction interval
 calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   #filtered df for given h
-  df_filtered <- filter_df(df=df, country=country, target_variable=target_variable,h=h)
+  mask <- make_mask(
+    df,
+    list(
+      country=country,
+      target=target_variable,
+      horizon=h
+    )
+  )
+  df_filtered <- df[mask,]
   
   #empty output dataframe
   df_quantiles <- data.frame(
@@ -86,9 +107,11 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
     tau = numeric(),
     abs_err = numeric(),
     abs_err_quantile = numeric(),
+    truth_value_1 = numeric(),
     prediction = numeric(),
     lower_point = numeric(),
     upper_point = numeric(),
+    tv_in_interval = logical(),
     stringsAsFactors = FALSE
   )
   
@@ -108,6 +131,8 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
     quantile <- quantile(abs_err_set, probs=tau, type=7, na.rm=TRUE)
     
     #append to output dataframe
+    lower_point <- df_filtered$prediction[i] - quantile
+    upper_point <- df_filtered$prediction[i] + quantile
     new_row <- data.frame(
       country = country,
       target_variable = target_variable,
@@ -117,9 +142,11 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
       tau = tau,
       abs_err = df_filtered$abs_err[i],
       abs_err_quantile = quantile,
+      truth_value_1 = df_filtered$tv_1[i],
       prediction = df_filtered$prediction[i],
-      lower_point = df_filtered$prediction[i] - quantile,
-      upper_point = df_filtered$prediction[i] + quantile,
+      lower_point = lower_point,
+      upper_point = upper_point,
+      tv_in_interval = (df_filtered$tv_1[i] >= lower_point) & (df_filtered$tv_1[i] <= upper_point),
       stringsAsFactors = FALSE
     )
     df_quantiles <- rbind(df_quantiles, new_row)
@@ -140,9 +167,11 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
     tau = numeric(),
     abs_err = numeric(),
     abs_err_quantile = numeric(),
+    truth_value_1 = numeric(),
     prediction = numeric(),
     lower_point = numeric(),
     upper_point = numeric(),
+    tv_in_interval = logical(),
     stringsAsFactors = FALSE
   )
 
@@ -164,8 +193,11 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
   }
   #pava correction of abs_err_quantiles
   df_output <- apply_pava_on_errors(df_output)
+  #update intervals after PAVA
   df_output$lower_point <- df_output$prediction - df_output$abs_err_quantile
   df_output$upper_point <- df_output$prediction + df_output$abs_err_quantile
+  
+  df_output$tv_in_interval <- (df_output$truth_value_1 >= df_output$lower_point) & (df_output$truth_value_1 <= df_output$upper_point)
   
   return(df_output)
 }
@@ -173,15 +205,21 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
 
 #TODO eval scores implementation CRPS, log Score, Interval Score
 
+calc_coverage <- function(x){
+  return(x/length(x))
+}
 
-calc_all_pred(
-  df = df_training,
+pred_median <- calc_all_pred(
+  df = df_holdout,
   countries = countries,
   target_variables = target_variables,
   h = c(0.5, 1.0),
   tau = tau,
   R = R
 )
+
+#save prediction
+write_parquet(pred_median, r"(data/processed/pred_median.parquet)")
 
 
 
