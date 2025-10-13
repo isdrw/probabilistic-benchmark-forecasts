@@ -11,7 +11,7 @@ df <- read_parquet(file_path)
 ##rolling window
 R <- 11
 ##quantiles
-tau <-0.5
+tau <-0.8
 
 #data preparation
 ##calculating absolute forecast errors
@@ -205,8 +205,22 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
 
 #TODO eval scores implementation CRPS, log Score, Interval Score
 
-calc_coverage <- function(x){
-  return(x/length(x))
+calc_coverage <- function(df, filters){
+  mask <- make_mask(df,filters)
+  df_filtered <- df[mask,]
+  mean_coverage <- sum(df_filtered$tv_in_interval, na.rm = TRUE) / 
+    sum(!is.na(df_filtered$tv_in_interval))
+  
+  return(mean_coverage)
+}
+
+calc_interval_score <- function(df){
+  u <- df$upper_point
+  l <- df$lower_point
+  y <- df$truth_value_1
+  tau <- df$tau
+  df$IS <- (u-l) + 2/(1-tau)*(l-y)*(y<l) + 2/(1-tau)*(y-u)*(y>u)
+  return(df)
 }
 
 pred_median <- calc_all_pred(
@@ -218,8 +232,23 @@ pred_median <- calc_all_pred(
   R = R
 )
 
+pred_0.8 <- calc_all_pred(
+  df = df_holdout,
+  countries = countries,
+  target_variables = target_variables,
+  h = c(0.5, 1.0),
+  tau = tau,
+  R = R
+)
+
 #save prediction
-write_parquet(pred_median, r"(data/processed/pred_median.parquet)")
+write_parquet(pred_0.8, r"(data/processed/pred_80%.parquet)")
 
 
 
+calc_coverage(
+  pred_0.8[pred_0.8$forecast_year>=2013,],
+  list(horizon=0.5)
+  )
+
+calc_interval_score(pred_median)
