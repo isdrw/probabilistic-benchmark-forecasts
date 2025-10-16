@@ -1,10 +1,11 @@
 #load library 
 library(arrow)
-
+library(dplyr)
+library(tidyr)
 #path
-file_path <- r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"
+file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
 
 #read data file
-df <- read_parquet(file_path)
-df[100:110,]
+df <- read.csv(file_path)
+df[df$]
 (unique(df$target))
