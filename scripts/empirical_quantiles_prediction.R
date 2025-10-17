@@ -1,6 +1,7 @@
 #load library 
 library(arrow)
-
+library(dplyr)
+library(tidyr)
 #path
 file_path <- r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"
 
@@ -27,9 +28,13 @@ df_training <- df[df$forecast_year <=2012,]
 df_holdout <- df[df$forecast_year >= 2013-R,]
 
 #filter function for dataframe ("ngdp_rpch" for GDP or "pcpi_pch" for Inflation) 
-filter_df <- function(df, country, target_variable, h){
-  return(df[df$country == country & df$target == target_variable & df$horizon == h,])
+
+
+filter_df <- function(df, filters) {
+  df %>%
+    filter(across(all_of(names(filters)), ~ . == filters[[cur_column()]]))
 }
+
 
 
 #function to filter df for given values such as 
@@ -44,44 +49,57 @@ make_mask <- function(df, filters) {
 
 
 #PAVA algorithm function
-pava_correction <- function(x, tolerance=1e-12){
-  n <- length(x)
+pava_correction <- function(x, y, increasing=TRUE, tolerance=1e-12){
+  na_idx <- is.na(x) | is.na(y)
+  x_clean <- x[!na_idx]
+  y_clean <- y[!na_idx]
+  n <- length(x_clean)
+  
+  if(n <= 1){
+    return(data.frame(x=x,y=y))
+  }
   
   repeat{
     violations_found <- FALSE
-    for(i in seq(n-1)){
-      if(x[i] - x[i+1] > tolerance){
-        x[c(i,i+1)] <- mean(c(x[i],x[i+1]))
+    for(i in seq_len(n-1)){
+      #increasing order
+      if(increasing && (x_clean[i] - x_clean[i+1] > tolerance)){
+        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
+        y_clean[c(i,i+1)] <- mean(c(y_clean[i],y_clean[i+1]))
+        violations_found <- TRUE
+      }  
+      #decreasing order 
+      if(!increasing && (x_clean[i+1] - x_clean[i] > tolerance)){
+        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
+        y_clean[c(i,i+1)] <- mean(c(y_clean[i],y_clean[i+1]))
         violations_found <- TRUE
       }
+      
     }
     if(violations_found == FALSE){
       break
     }
   }
-  return(x)
+  x_out <- x
+  y_out <- y
+  x_out[!na_idx] <- x_clean
+  y_out[!na_idx] <- y_clean
+  
+  return(data.frame(x=x_out,y=y_out))
 }
 
-#function to apply PAVA algorithm on dataframe to correct abs error violations
-apply_pava_on_errors <- function(df){
-  for(country in countries){
-    for(target_year in df$target_year){
-      for(target_variable in df$target){
-        for(tau in df$tau){
-          mask <- make_mask(
-            df,
-            list(country=country,
-                 target_year=target_year,
-                 target=target_variable,
-                 tau=tau)
-            )
-          df[mask,"abs_err_quantile"] <- pava_correction(df[mask,"abs_err_quantile"])
-          
-        }
-      }
-    }
-  }
-  return(df)
+#function to apply PAVA algorithm on dataframe to correct upper point violations and change
+#corresponding lower points as well
+apply_pava_on_df <- function(df) {
+  df %>%
+    group_by(country, target_year, target_variable, tau) %>%
+    group_modify(~ {
+      corrected <- pava_correction(.x$upper_point, .x$lower_point)
+      .x$upper_point <- corrected$x
+      .x$lower_point <- corrected$y
+      .x
+    }) %>%
+    ungroup()
 }
 
 #function to calculate empirical quantiles and prediction interval
@@ -191,13 +209,11 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
       }
     }
   }
-  #pava correction of abs_err_quantiles
-  df_output <- apply_pava_on_errors(df_output)
-  #update intervals after PAVA
-  df_output$lower_point <- df_output$prediction - df_output$abs_err_quantile
-  df_output$upper_point <- df_output$prediction + df_output$abs_err_quantile
+  #pava correction of upper and lower interval points
+  df_output <- apply_pava_on_df(df_output)
   
-  df_output$tv_in_interval <- (df_output$truth_value_1 >= df_output$lower_point) & (df_output$truth_value_1 <= df_output$upper_point)
+  df_output$tv_in_interval <- (df_output$truth_value_1 >= df_output$lower_point) &
+    (df_output$truth_value_1 <= df_output$upper_point)
   
   return(df_output)
 }
