@@ -105,7 +105,7 @@ apply_pava_on_df <- function(df) {
 #function to calculate empirical quantiles and prediction interval
 calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   #filtered df for given h
-  mask <- make_mask(
+  df_filtered <- filter_df(
     df,
     list(
       country=country,
@@ -113,7 +113,6 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
       horizon=h
     )
   )
-  df_filtered <- df[mask,]
   
   #empty output dataframe
   df_quantiles <- data.frame(
@@ -222,8 +221,10 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
 #TODO eval scores implementation CRPS, log Score, Interval Score
 
 calc_coverage <- function(df, filters){
-  mask <- make_mask(df,filters)
-  df_filtered <- df[mask,]
+  df_filtered <- filter_df(
+    df,
+    filters
+  )
   mean_coverage <- sum(df_filtered$tv_in_interval, na.rm = TRUE) / 
     sum(!is.na(df_filtered$tv_in_interval))
   
