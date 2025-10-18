@@ -218,7 +218,7 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
 }
 
 
-#TODO eval scores implementation CRPS, log Score, Interval Score
+#eval scores implementation Interval Score, Coverage
 
 calc_coverage <- function(df, filters){
   df_filtered <- filter_df(
@@ -240,12 +240,33 @@ calc_interval_score <- function(df){
   return(df)
 }
 
+calc_weighted_IS <- function(df_set) {
+  k <- length(df_set)
+  
+  weighted_score <- Reduce(
+    `+`,
+    lapply(df_set, function(df) {
+      tau <- unique(df$tau)
+      weight <- (1 - tau) / k
+      weight * df$IS
+    })
+  )
+  
+  df_set <- lapply(df_set, function(df) {
+    df$IS_weighted <- weighted_score
+    df
+  })
+  
+  return(df_set)
+}
+
+
 pred_median <- calc_all_pred(
   df = df_holdout,
   countries = countries,
   target_variables = target_variables,
   h = c(0.5, 1.0),
-  tau = tau,
+  tau = 0.5,
   R = R
 )
 
@@ -254,13 +275,9 @@ pred_0.8 <- calc_all_pred(
   countries = countries,
   target_variables = target_variables,
   h = c(0.5, 1.0),
-  tau = tau,
+  tau = 0.8,
   R = R
 )
-
-#save prediction
-write_parquet(pred_0.8, r"(data/processed/pred_80%.parquet)")
-
 
 
 calc_coverage(
@@ -268,4 +285,14 @@ calc_coverage(
   list(horizon=0.5)
   )
 
-calc_interval_score(pred_median)
+pred_median <- calc_interval_score(pred_median)
+pred_0.8 <- calc_interval_score(pred_0.8)
+
+df_set <- calc_weighted_IS(list(pred_median,pred_0.8))
+pred_median <- df_set[[1]]
+pred_0.8 <- df_set[[2]]
+
+
+#save prediction
+write_parquet(pred_median,r"(data/processed/pred_median.parquet)")
+write_parquet(pred_0.8, r"(data/processed/pred_80%.parquet)")
