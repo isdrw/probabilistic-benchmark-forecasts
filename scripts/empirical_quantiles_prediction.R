@@ -11,8 +11,7 @@ df <- read_parquet(file_path)
 #parameters
 ##rolling window
 R <- 11
-##quantiles
-tau <-0.8
+
 
 #data preparation
 ##calculating absolute forecast errors
@@ -25,6 +24,7 @@ target_variables <- unique(df$target)
 
 #data spliting
 df_training <- df[df$forecast_year <=2012,]
+#starting at 2013-R so that the predictions from 2013 onwars are all with a rolling window of R
 df_holdout <- df[df$forecast_year >= 2013-R,]
 
 #filter function for dataframe ("ngdp_rpch" for GDP or "pcpi_pch" for Inflation) 
@@ -231,6 +231,7 @@ calc_coverage <- function(df, filters){
   return(mean_coverage)
 }
 
+#function to calculate interval score for given prediction
 calc_interval_score <- function(df){
   u <- df$upper_point
   l <- df$lower_point
@@ -240,6 +241,7 @@ calc_interval_score <- function(df){
   return(df)
 }
 
+#function to calculate weighted interval score 
 calc_weighted_IS <- function(df_set) {
   k <- length(df_set)
   
@@ -260,39 +262,37 @@ calc_weighted_IS <- function(df_set) {
   return(df_set)
 }
 
+#calculate prediction intervals for all taus (0.1,...,0.9)
+##Predictions were made on holdout dataset (>=2013-R)
+##For the first R predictions the rolling window was smaller than R
+##Predictions from 2013 onwards are with rolling window R
+taus <- seq(0.1,0.9,by=0.1)
+predictions <- vector("list", length(taus))
+names(predictions) <- paste0("tau_",taus)
 
-pred_median <- calc_all_pred(
-  df = df_holdout,
-  countries = countries,
-  target_variables = target_variables,
-  h = c(0.5, 1.0),
-  tau = 0.5,
-  R = R
-)
-
-pred_0.8 <- calc_all_pred(
-  df = df_holdout,
-  countries = countries,
-  target_variables = target_variables,
-  h = c(0.5, 1.0),
-  tau = 0.8,
-  R = R
-)
-
-
-calc_coverage(
-  pred_0.8[pred_0.8$forecast_year>=2013,],
-  list(horizon=0.5)
+#loop over taus
+for(i in seq_along(taus)){
+  predictions[[i]] <- calc_all_pred(
+    df = df_holdout,
+    countries = countries,
+    target_variables = target_variables,
+    h = c(0.5, 1.0),
+    tau = taus[i],
+    R = R
   )
+  predictions[[i]] <- calc_interval_score(predictions[[i]])
+}
 
-pred_median <- calc_interval_score(pred_median)
-pred_0.8 <- calc_interval_score(pred_0.8)
-
-df_set <- calc_weighted_IS(list(pred_median,pred_0.8))
-pred_median <- df_set[[1]]
-pred_0.8 <- df_set[[2]]
-
+predictions_weighted <- calc_weighted_IS(predictions)
 
 #save prediction
-write_parquet(pred_median,r"(data/processed/pred_median.parquet)")
-write_parquet(pred_0.8, r"(data/processed/pred_80%.parquet)")
+for(i in seq_along(taus)){
+  tau <- taus[i]
+  
+  filename <- paste0("prediction_tau_",tau,".parquet")
+  folder <- "results/empirical_quantiles_prediction"
+  path <- file.path(folder,filename)
+  write_parquet(predictions_weighted[[i]],path)
+}
+
+
