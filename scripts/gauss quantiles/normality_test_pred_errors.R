@@ -19,14 +19,12 @@ df <- read_parquet(file_path)
 df$err <- df$prediction-df$tv_1
 
 #testing assumption: prediction errors are normally distributed
-##qq plot of errors (unfiltered)
-###errors for g7 countries
+##qq plot of errors 
 
 
-
-# Subset errors for both targets
-errors_pcpi <- df[df$target == "pcpi_pch", "err"]
-errors_ngdp <- df[df$target == "ngdp_rpch", "err"]
+##Subset errors for both targets
+errors_pcpi <- df[df$target == "pcpi_pch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2011&df$forecast_year<=2019, "err"]
+errors_ngdp <- df[df$target == "ngdp_rpch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2011&df$forecast_year<=2019, "err"]
 
 errors_pcpi <- errors_pcpi[!is.na(errors_pcpi)]
 errors_ngdp <- errors_ngdp[!is.na(errors_ngdp)]
@@ -60,23 +58,30 @@ plot_qq <- function(x_1, x_2){
         outer = TRUE, cex = 1.4, font = 2)
 }
 
+#qq-plots on all datapoints
 plot_qq(errors_pcpi,errors_ngdp)
 par(mfrow = c(1, 1))
 
+##Anderson-Darling test for normality
+ad.test(errors_pcpi)
+ad.test(errors_ngdp)
+
+
+#removing outliers
 errors_pcpi <- remove_outliers(errors_pcpi)
 errors_ngdp <- remove_outliers(errors_ngdp)
 
 #qq plot after outliers have been removed
 plot_qq(errors_pcpi,errors_ngdp)
-
-
-
-##qqplot with outliers removed
-qqnorm(err_filtered)
-qqline(err_filtered,col="blue")
+par(mfrow = c(1, 1))
 
 ##Anderson-Darling test for normality
-ad.test(errors)
+ad.test(errors_pcpi)
+ad.test(errors_ngdp)
+
 #shapiro test for small sample size
-shapiro.test(errors)
+shapiro.test(errors_pcpi)
+shapiro.test(errors_ngdp)
+
+
 

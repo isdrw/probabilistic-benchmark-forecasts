@@ -1,3 +1,6 @@
+rm(list = ls())
+gc()
+
 #load library 
 library(arrow)
 library(dplyr)
@@ -23,9 +26,9 @@ target_variables <- unique(df$target)
 
 
 #data spliting
-df_training <- df[df$forecast_year <=2012,]
-#starting at 2013-R so that the predictions from 2013 onwars are all with a rolling window of R
-df_holdout <- df[df$forecast_year >= 2013-R,]
+df_training <- df[df$forecast_year <=2012&df$g7==1,]
+#starting at 2013-R so that the predictions from 2013 onwards are all with a rolling window of R
+df_holdout <- df[(df$forecast_year >= 2013-R)&df$g7==1,]
 
 #filter function for dataframe ("ngdp_rpch" for GDP or "pcpi_pch" for Inflation) 
 
@@ -33,18 +36,6 @@ df_holdout <- df[df$forecast_year >= 2013-R,]
 filter_df <- function(df, filters) {
   df %>%
     filter(across(all_of(names(filters)), ~ . == filters[[cur_column()]]))
-}
-
-
-
-#function to filter df for given values such as 
-#filter <- list(country=countries[1], target="ngdp_rpch")
-make_mask <- function(df, filters) {
-  mask <- rep(TRUE, nrow(df))
-  for (v in names(filters)) {
-    mask <- mask & (df[[v]] == filters[[v]])
-  }
-  return(mask)
 }
 
 
@@ -142,7 +133,7 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
     
     #replacement of NA
     indexes_na <- which(is.na(abs_err_set))
-    abs_err_set[indexes_na] <- abs_err_set[11-indexes_na+1]
+    abs_err_set[indexes_na] <- abs_err_set[R-indexes_na+1]
     
     #quantiles of set
     quantile <- quantile(abs_err_set, probs=tau, type=7, na.rm=TRUE)
@@ -289,10 +280,22 @@ predictions_weighted <- calc_weighted_IS(predictions)
 for(i in seq_along(taus)){
   tau <- taus[i]
   
-  filename <- paste0("prediction_tau_",tau,".parquet")
+  filename <- paste0("prediction_g7_tau_",tau,".parquet")
   folder <- "results/empirical_quantiles_prediction"
   path <- file.path(folder,filename)
   write_parquet(predictions_weighted[[i]],path)
 }
 
 
+#calculate coverage
+c <- list()
+for(i in seq_along(predictions_weighted)){
+  pred <- predictions_weighted[[i]]
+  c[i] <- calc_coverage(
+    pred,
+    list(
+      target_variable="ngdp_rpch"
+    )
+  )
+}
+c
