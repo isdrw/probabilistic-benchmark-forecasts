@@ -19,9 +19,10 @@ df$err <- df$prediction-df$tv_1
 
 #training dataset
 df_training <- df[df$forecast_year<=2012&df$g7==1,]
+df_holdout <- df[df$forecast_year>=2013-16&df$g7==1,]
 
-countries <- unique(df_training$country)
-target_variables <- unique(df_training$target)
+countries <- unique(df_holdout$country)
+target_variables <- unique(df_holdout$target)
 
 
 fit_normal_distribution <- function(x,default_mean=0,default_sd=1){
@@ -248,5 +249,43 @@ for(R in seq(3,16,by=1)){
   cat("R =", R, "average WIS =", average_weighted_IS, "\n")
 }
 
+#found R=16
 best_R
 best_score
+
+#calculate prediction intervals for all taus (0.1,...,0.9)
+##Predictions were made on holdout dataset (>=2013-R)
+##For the first R predictions the rolling window was smaller than R
+##Predictions from 2013 onwards are with rolling window R
+taus <- seq(0.1,0.9,by=0.1)
+predictions <- vector("list", length(taus))
+names(predictions) <- paste0("tau_",taus)
+
+#loop over taus
+for(i in seq_along(taus)){
+  predictions[[i]] <- calc_all_pred(
+    df = df_holdout,
+    countries = countries,
+    target_variables = target_variables,
+    h = c(0.5, 1.0),
+    tau = taus[i],
+    R = 16
+  )
+  predictions[[i]] <- calc_interval_score(predictions[[i]])
+}
+
+predictions_weighted <- calc_weighted_IS(predictions)
+
+#save prediction
+for(i in seq_along(taus)){
+  tau <- taus[i]
+  
+  filename <- paste0("prediction_g7_tau_",tau,".parquet")
+  folder <- "results/gauss_quantiles_prediction"
+  path <- file.path(folder,filename)
+  write_parquet(predictions_weighted[[i]],path)
+}
+
+
+
+
