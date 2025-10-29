@@ -23,8 +23,8 @@ df$err <- df$prediction-df$tv_1
 
 
 ##Subset errors for both targets
-errors_pcpi <- df[df$target == "pcpi_pch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2011&df$forecast_year<=2019, "err"]
-errors_ngdp <- df[df$target == "ngdp_rpch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2011&df$forecast_year<=2019, "err"]
+errors_pcpi <- df[df$target == "pcpi_pch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2000&df$forecast_year<=2015, "err"]
+errors_ngdp <- df[df$target == "ngdp_rpch"&df$g7==1&df$horizon==0.5&df$forecast_year>=2000&df$forecast_year<=2015, "err"]
 
 errors_pcpi <- errors_pcpi[!is.na(errors_pcpi)]
 errors_ngdp <- errors_ngdp[!is.na(errors_ngdp)]
@@ -65,7 +65,9 @@ par(mfrow = c(1, 1))
 ##Anderson-Darling test for normality
 ad.test(errors_pcpi)
 ad.test(errors_ngdp)
-
+#shapiro test for small sample size
+shapiro.test(errors_pcpi)
+shapiro.test(errors_ngdp)
 
 #removing outliers
 errors_pcpi <- remove_outliers(errors_pcpi)
