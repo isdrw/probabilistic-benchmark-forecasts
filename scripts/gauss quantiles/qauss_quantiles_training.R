@@ -54,7 +54,7 @@ filter_df <- function(df, filters) {
 }
 
 #function to calculate quantiles of fitted normal distribution and prediction interval
-calc_pred_interval <- function(df, country, target_variable, R, h, tau){
+calc_pred_interval <- function(df, country, target_variable, R, h, tau, fit_mean=TRUE){
   #filtered df for given h
   df_filtered <- filter_df(
     df,
@@ -98,10 +98,13 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
     
     #quantiles of set
     fit_n <- fit_normal_distribution(err_set)
-    fitted_mean <- fit_n$estimate["mean"]
+    fitted_mean <- 0
+    if(fit_mean){
+      fitted_mean <- fit_n$estimate["mean"]  
+    }
     fitted_sd <- fit_n$estimate["sd"]
-    q_l <- qnorm((1-tau)/2,mean=fitted_mean,sd=fitted_sd)
-    q_u <- qnorm((1+tau)/2,mean=fitted_mean,sd=fitted_sd)
+    q_l <- qnorm((1-tau)/2,mean = fitted_mean,sd = fitted_sd)
+    q_u <- qnorm((1+tau)/2,mean = fitted_mean,sd = fitted_sd)
     
     #append to output dataframe
     lower_point <- df_filtered$prediction[i] + q_l
@@ -129,7 +132,7 @@ calc_pred_interval <- function(df, country, target_variable, R, h, tau){
   return(df_quantiles)
 }
 
-calc_all_pred <- function(df, countries, target_variables, h, tau, R){
+calc_all_pred <- function(df, countries, target_variables, h, tau, R, fit_mean=TRUE){
   #output dataframe
   df_output <- data.frame(
     country = character(),
@@ -159,7 +162,8 @@ calc_all_pred <- function(df, countries, target_variables, h, tau, R){
           target_variable = target_variable,
           R = R,
           h = horizon,
-          tau = tau
+          tau = tau,
+          fit_mean = fit_mean
         )
         df_output <- rbind(df_output, new_row)
       }
@@ -213,10 +217,10 @@ calc_weighted_IS <- function(df_set) {
 #find best rolling window on training dataset for g7 countries to calculate prediction interval
 #based on quantiles of fitted normal distribution
 #best R between 1 and 20 is R for which average weighted Interval score over all taus and 
-best_R <- 3
+best_R <- 5
 best_score <- Inf
 score_list <- list()
-for(R in seq(3,16,by=1)){
+for(R in seq(5,16,by=1)){
   cat("current rolling window R", R,"\n")
   #set of taus
   taus <- seq(0.1,0.9,by=0.1)
@@ -233,7 +237,8 @@ for(R in seq(3,16,by=1)){
       target_variables = target_variables,
       h = c(0.5, 1.0),
       tau = taus[i],
-      R = R
+      R = R,
+      fit_mean=FALSE
     )
     predictions[[i]] <- calc_interval_score(predictions[[i]])
   }
@@ -269,7 +274,8 @@ for(i in seq_along(taus)){
     target_variables = target_variables,
     h = c(0.5, 1.0),
     tau = taus[i],
-    R = 16
+    R = 11,
+    fit_mean = TRUE
   )
   predictions[[i]] <- calc_interval_score(predictions[[i]])
 }
@@ -280,8 +286,8 @@ predictions_weighted <- calc_weighted_IS(predictions)
 for(i in seq_along(taus)){
   tau <- taus[i]
   
-  filename <- paste0("prediction_g7_tau_",tau,".parquet")
-  folder <- "results/gauss_quantiles_prediction"
+  filename <- paste0("prediction_fitted_mean_g7_tau_",tau,".parquet")
+  folder <- "results/gauss_quantiles_prediction/fitted_mean"
   path <- file.path(folder,filename)
   write_parquet(predictions_weighted[[i]],path)
 }
