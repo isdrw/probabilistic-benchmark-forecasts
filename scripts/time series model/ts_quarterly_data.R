@@ -28,99 +28,95 @@ filter_df <- function(df, filters) {
 
 #Function to fit ARIMA model either with given order or with automatic
 #fitting of best order according to AIC
-fit_arima <- function(df,order=c(1,0,0),auto=FALSE){
+fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
   
   #prediction
   predictions <- data.frame(
     country=character(),
     forecast_year=numeric(),
+    target_year=numeric(),
+    target_quarter=numeric(),
     horizon=numeric(),
     target=character(),
     prediction=numeric()
   )
+  
+  countries <- unique(df$ccode)
   
   for(country in countries){
     #time series data for each country and target
     data_by_country <- df[df$ccode==country,]
     
     for(i in seq(44,nrow(data_by_country))){
-      data_gdp <- data_by_country[(i-44+1):i,"gdp"]
-      data_cpi <- data_by_country[(i-44+1):i,"cpi"]
+      data <- data_by_country[(i-44+1):i,][[target]]
       #start date of observations 
       start_year <- data_by_country[i-44+1,"year"]
       end_year <- data_by_country[i,"year"]
       start_quarter <- data_by_country[i-44+1,"quarter"]
+      end_quarter <- data_by_country[i,"quarter"]
       start_date <- c(start_year,start_quarter)
       
       #skip if only NAs
-      if(all(is.na(data_gdp)) || all(is.na(data_cpi)) || 
-         is.null(data_gdp) || is.null(data_cpi)){
+      if(all(is.na(data)) || is.null(data)){
         message("no valid data for ", country, " between ", start_year, " and ", end_year)
         next
       }
       #replace NAs with mean 
-      data_gdp[is.na(data_gdp)] <- mean(data_gdp,na.rm=TRUE)
-      data_cpi[is.na(data_cpi)] <- mean(data_cpi,na.rm=TRUE)
+      data[is.na(data)] <- mean(data,na.rm=TRUE)
       
       #convert to time series object
-      ts_data_gdp <- ts(data_gdp,start = start_date,frequency = 4)
-      ts_data_cpi <- ts(data_cpi,start = start_date,frequency = 4)
+      ts_data <- ts(data,start = start_date,frequency = 4)
       
       #ARIMA model fit with order=order
-      if(auto==FALSE){
-        fit_gdp <- arima(ts_data_gdp,order = order)
-        fit_cpi <- arima(ts_data_cpi,order = order)  
-      }else{
-        #fit model with best AIC 
-        fit_gdp <- auto.arima(ts_data_gdp,ic = "aic")
-        fit_cpi <- auto.arima(ts_data_cpi,ic = "aic")
-      }
+      fit <- tryCatch({
+        if(!auto){
+          arima(ts_data,order = order)
+        }else{
+          #fit model with best AIC 
+          auto.arima(ts_data,ic = "aic")
+        }
+      },error=function(e){
+        message("Fit failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
+        NULL
+      })
+      
       
       #predict values for upcoming 1 (4 quarters)
       #second prediction equals 0.5 horizon forecast and 4th prediction equals 1.0 horizon forecast
-      prediction_cpi <- NULL
-      prediction_gdp <- NULL
-      
-      tryCatch(
-        prediction_gdp <- predict(fit_gdp,n.ahead = 4),
-        error=function(e) NULL
-      )
-      
-      tryCatch(
-        prediction_cpi <- predict(fit_cpi,n.ahead = 4),
-        error=function(e) NULL
-      )
-      
-      if(is.null(prediction_gdp) || is.null(prediction_cpi)){
-        message("no valid data for ", country, " between ", start_year, " and ", end_year)
+      pred <- tryCatch({
+        predict(fit,n.ahead = 4)
+      },error=function(e){
+        message("Prediction failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
+        NULL
+      })
+
+      if(is.null(pred)){
         next
       }
       
-      new_row_pred_gdp <- data.frame(
-        country=rep(country,times=4),
-        forecast_year=end_year,
-        horizon=c(0.25,0.5,0.75,1.0),
-        target=rep("gdp",times=4),
-        prediction=prediction_gdp$pred
-      )
+      target_quarter_seq <- (end_quarter + 0:3)%%4 + 1
+      horizon_seq <- c(0.25,0.5,0.75,1.0)
+      target_year_seq <- end_year + floor(end_quarter/4 -0.25 + horizon_seq)
       
-      new_row_pred_cpi <- data.frame(
+      new_row_pred <- data.frame(
         country=rep(country,times=4),
         forecast_year=end_year,
-        horizon=c(0.25,0.5,0.75,1.0),
-        target=rep("cpi",times=4),
-        prediction=prediction_cpi$pred
+        target_year=target_year_seq,
+        target_quarter=target_quarter_seq,
+        horizon=horizon_seq,
+        target=rep(target,times=4),
+        prediction=pred$pred
       )
       
       #append dataframe
-      predictions <- bind_rows(predictions, new_row_pred_gdp, new_row_pred_cpi)
-      rm(prediction_cpi,prediction_gdp,fit_gdp,fit_cpi,ts_data_cpi,ts_data_gdp)
+      predictions <- bind_rows(predictions, new_row_pred)
+      rm(pred,fit,ts_data)
     }
   }
   return(predictions)
 }
 
-predictions <- fit_arima(df,auto = TRUE)
+predictions <- fit_arima(df,target = "gdp")
 
 
 

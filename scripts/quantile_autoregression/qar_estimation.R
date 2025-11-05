@@ -52,6 +52,7 @@ fit_qar <- function(df, tau, nlag=1){
     #lag data
     data_gdp_lagged <- lapply(1:nlag,function(L) dplyr::lag(data_gdp,n = L))
     names(data_gdp_lagged) <- paste0("lag_",1:nlag)
+    
     data_cpi_lagged <- lapply(1:nlag,function(L) dplyr::lag(data_cpi,n = L))
     names(data_cpi_lagged) <- paste0("lag_",1:nlag)
     
