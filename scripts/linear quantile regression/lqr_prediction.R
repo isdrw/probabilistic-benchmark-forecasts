@@ -78,9 +78,9 @@ fit_lqr <- function(df, tau, target, R=11){
       data_by_country <- df[df$country==country & df$target==target & df$horizon==h,]
       for(i in seq(11,nrow(data_by_country))){
         #predicted value vector
-        data_pred <- data_by_country$prediction
+        data_pred <- data_by_country[(i-11+1):i,"prediction"]
         #truth value vector
-        data_tv1 <- data_by_country$tv_1
+        data_tv1 <- data_by_country[(i-11+1):i,"tv_1"]
         
         forecast_year_start <- data_by_country[(i-11+1),"forecast_year"]
         forecast_year_end <- data_by_country[i,"forecast_year"]
