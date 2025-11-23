@@ -74,7 +74,7 @@ fit_lqr <- function(df, tau, target, R=11){
     upper_bound=numeric(),
     truth_value=numeric()
   )
-  
+  countries <- unique(df$country)
   for(country in countries){
     for(h in c(0.5,1.0)){
       data_by_country <- df[df$country==country & df$target==target & df$horizon==h,]
@@ -83,7 +83,9 @@ fit_lqr <- function(df, tau, target, R=11){
         data_pred <- data_by_country[(i-R+1):i,"prediction"]
         #truth value vector
         data_tv1 <- data_by_country[(i-R+1):i,"tv_1"]
-        
+        #truth value for i+1
+        tv_1 <- data_by_country[i+1,"tv_1"]
+
         forecast_year_start <- data_by_country[(i-R+1),"forecast_year"]
         forecast_year_end <- data_by_country[i,"forecast_year"]
         
@@ -124,7 +126,6 @@ fit_lqr <- function(df, tau, target, R=11){
         new_data <- data.frame(data_pred = last_pred)
         pred_l <- as.numeric(predict(fit_l, newdata = new_data))
         pred_u <- as.numeric(predict(fit_u, newdata = new_data))
-        tv <- data_by_country[(i+1),"tv_1"]
         
         new_row <- data.frame(
           country = country,
@@ -135,7 +136,7 @@ fit_lqr <- function(df, tau, target, R=11){
           tau = tau,
           lower_bound = pred_l,
           upper_bound = pred_u,
-          truth_value = tv,
+          truth_value = tv_1,
           stringsAsFactors = FALSE
         )
         
@@ -184,7 +185,7 @@ pred <- data.frame(
 
 for(target in target_variables){
   for(tau in seq(0.1,0.9,0.1)){
-    pred <- rbind(pred,fit_lqr(df_training,tau,target=target,R=16))
+    pred <- rbind(pred,fit_lqr(df_training,tau,target=target,R=8))
   }
 }
 
@@ -201,4 +202,9 @@ pred$WIS_5_8 <- NA
 pred[pred$tau==0.5,"WIS_5_8"] <- WIS_5_8
 pred[pred$tau==0.8,"WIS_5_8"] <- WIS_5_8
 
+mean(WIS_5_8,na.rm=TRUE)
 mean(pred[pred$tau==0.8&pred$target=="pcpi_pch","WIS_5_8"],na.rm = TRUE)
+
+
+
+df_training[df_training$country=="Canada" & df_training$target=="ngdp_rpch" & df_training$horizon==1.0,]

@@ -38,6 +38,7 @@ fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
     target_quarter=numeric(),
     horizon=numeric(),
     target=character(),
+    truth_value=numeric(),
     prediction=numeric()
   )
   
@@ -49,7 +50,14 @@ fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
     
     for(i in seq(44,nrow(data_by_country))){
       data <- data_by_country[(i-44+1):i,][[target]]
-      #start date of observations 
+      tv_end <- min(i + 4, nrow(data_by_country))
+      truth_values <- data_by_country[(i+1):tv_end, ][[target]]
+      #fill with NA for non-existent truth_values
+      if(length(truth_values) < 4){
+        truth_values <- c(truth_values, rep(NA, 4 - length(truth_values)))
+      }
+      
+      #start/end date of observations 
       start_year <- data_by_country[i-44+1,"year"]
       end_year <- data_by_country[i,"year"]
       start_quarter <- data_by_country[i-44+1,"quarter"]
@@ -105,6 +113,7 @@ fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
         target_quarter=target_quarter_seq,
         horizon=horizon_seq,
         target=rep(target,times=4),
+        truth_value=truth_values,
         prediction=pred$pred
       )
       
@@ -116,8 +125,9 @@ fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
   return(predictions)
 }
 
-predictions <- fit_arima(df,target = "gdp")
-
+predictions <- fit_arima(df,order=c(1,1,0),target = "gdp")
+predictions <- rbind(predictions, fit_arima(df,order=c(1,1,0),target = "cpi"))
+write.csv(predictions,"data/processed/point predictions/point_predictions_arima1_1_0.csv")
 
 
 
