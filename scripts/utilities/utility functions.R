@@ -141,7 +141,7 @@ init_output_df <- function(interval=TRUE) {
 #'FALSE --> output dataframe for prediction of point
 #'
 #'@return new filled row for output dataframe 
-new_pred_row <- function(country, forecast_year, target_year, target, forecast_qaurter=NA, 
+new_pred_row <- function(country, forecast_year, target_year, target, target_quarter=NA, 
                          horizon=NA, tau=NA, lower_bound=NA, 
                          upper_bound=NA, truth_value=NA, interval=TRUE, prediction=NA) {
   
@@ -173,7 +173,7 @@ new_pred_row <- function(country, forecast_year, target_year, target, forecast_q
       stringsAsFactors = FALSE
     )
   }
-  return(df)
+  return(new_row)
 }
 
 # ---------------------------
@@ -198,7 +198,7 @@ extract_window <- function(data, i, R, pred_col = "prediction", tv_col = "tv_1")
 }
 
 # ---------------------------
-# 5. Model fitting helpers
+# 5. Model fitting observation based
 # ---------------------------
 
 
@@ -221,6 +221,156 @@ unconditional_quantiles <- function(obs, tau) {
   upper_bound <- quantile(obs, probs=(1+tau)/2, type=7, na.rm=TRUE)
   
   return(c(lower_bound=lower_bound, upper_bound=upper_bound))
+}
+
+
+#'fit quantile autoregressive model QAR(p) and return fit (observation based)
+#'@description
+#'function fits three quantile autoregressive QAR(p) models on given observations based on given
+#'level tau and returns fitted models with quantiles q_1 = (1-tau)/2; q_2 = =(1+tau)/2 and q_3 = 0.5
+#'
+#'@param obs numeric vector of observations
+#'@param tau numeric value of tau
+#'@param nlag numeric value for nlag=p of QAR(p) model; default p=1 
+#'
+#'@return fitted models for lower bound, upper bound and median 
+#'\describe{
+#'   \item{fit_l}{Lower bound QAR fit}
+#'   \item{fit_u}{Upper bound QAR fit}
+#'   \item{fit_m}{Median QAR fit}
+#' }
+fit_qar <- function(obs, tau, nlag=1) {
+  #check if library installed and loaded
+  if (!requireNamespace("quantreg", quietly = TRUE)) {
+    stop("Package 'quantreg' is required but not installed.")
+  }
+  
+  #check for sufficient length of obs
+  if (length(obs) < nlag + 2) {
+    warning("QAR(",nlag,") Model needs at least ", nlag+2, " observations to fit model")
+    return(NULL)
+  }
+  
+  #substitute NAs with median
+  obs[is.na(obs)] <- median(obs,na.rm=TRUE)
+  
+  #lag data
+  data_lagged <- lapply(1:nlag, function(L) dplyr::lag(obs, n = L))
+  names(data_lagged) <- paste0("lag_",1:nlag)
+  
+  #dataframe for regression
+  data_reg <- data.frame(
+    y = obs, 
+    do.call(cbind, data_lagged)
+  )
+  
+  #remove NAs
+  data_reg <- stats::na.omit(data_reg)
+  
+  #check for non empty dataframe
+  if (nrow(data_reg) == 0) {
+    warning("No valid rows after lagging & removing NA.")
+    return(NULL)
+  }
+  
+  #lower quantile
+  fit_l <- tryCatch({
+    quantreg::rq(formula = y ~ ., tau = (1-tau)/2, data = data_reg)
+  },error=function(e){
+    message("lower QAR fit failed ", e$message)
+    NULL
+  })
+  
+  #median for prediction 
+  fit_m <- tryCatch({
+    quantreg::rq(formula = y ~ ., tau = 0.5, data = data_reg)
+  },error=function(e){
+    message("median QAR fit failed ", e$message)
+    NULL
+  })
+  
+  fit_u <- tryCatch({
+    quantreg::rq(formula = y ~ ., tau = (1+tau)/2, data = data_reg)
+  },error=function(e){
+    message("upper QAR fit failed ", e$message)
+    NULL
+  })
+  
+  return(list(
+    fit_l = fit_l, 
+    fit_u = fit_u, 
+    fit_m = fit_m
+  ))
+}
+
+
+
+#'predict quantile of fitted autoregressive models QAR(p) (observation based)
+#'@description
+#'function predicts quantiles of given fitted models for n steps ahead. For multiple predictions
+#'median prediction is used as a new point prediction
+#'
+#'@param last_obs numeric vector of last observations (must be length of nlag of fitted models)
+#'for nlag=2 must include obs_(t-1) and obs_(t-2)
+#'@param fit_l lm object lower bound QAR fit 
+#'@param fit_m lm object median QAR fit 
+#'@param fit_u lm object upper bound QAR fit 
+#'@param n_ahead numeric value for number of predicted values default=4 (for quarterly data)
+#'
+#'@note
+#'models must be of same order; observation vector must contain last value/values
+#'including respective lagged values; obs vector must be length of nlag of fitted models
+#'
+#'@return fitted models for lower bound, upper bound and median 
+#'\describe{
+#'   \item{pred_l}{Lower bound predictions}
+#'   \item{pred_u}{Upper bound predictions}
+#'   \item{pred_m}{Median QAR predictions}
+#' }
+predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
+
+  if (is.null(fit_l) || is.null(fit_m) || is.null(fit_u)) {
+    stop("All fit_l, fit_m, and fit_u must be non-null fitted QAR models.")
+  }
+  
+  #order of models 
+  nlag <- length(coef(fit_l))-1
+  
+  # convert to numeric lag vector
+  last_obs <- as.numeric(last_obs)
+  
+  if (length(last_obs) != nlag) {
+    stop("last_obs must have length equal to nlag used in model fitting.")
+  }
+  
+  #prediction vectors
+  pred_l <- numeric(n_ahead)
+  pred_m <- numeric(n_ahead)
+  pred_u <- numeric(n_ahead)
+  
+  # current lag state
+  lag_vec <- last_obs
+  
+  for (h in 1:n_ahead) {
+    
+    # construct dataframe for prediction: one row, named lag_1, lag_2, ...
+    new_data <- as.data.frame(t(lag_vec))
+    names(new_data) <- paste0("lag_", 1:nlag)
+    
+    # predict lower, median, upper
+    pred_l[h] <- as.numeric(predict(fit_l, newdata = new_data))
+    pred_m[h] <- as.numeric(predict(fit_m, newdata = new_data))
+    pred_u[h] <- as.numeric(predict(fit_u, newdata = new_data))
+    
+    # update lag vector: recursive → median prediction becomes new first lag
+    lag_vec <- c(pred_m[h], head(lag_vec, nlag - 1))
+  }
+  
+  return(list(
+    pred_l = pred_l,
+    pred_m = pred_m,
+    pred_u = pred_u
+  ))
 }
 
 # Requires quantreg
