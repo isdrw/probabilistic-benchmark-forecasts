@@ -22,7 +22,7 @@ df$year <- as.numeric(df$year)
 df$quarter <- as.numeric(gsub("Q","",df$quarter))
 countries <- unique(df$ccode)
 
-pred_quantiles <- function(df, tau, target, R=44){
+pred_quantiles <- function(df, tau, target, R = 44, n_ahead = 4){
   
   #initialize prediction dataframe
   predictions <- init_output_df()
@@ -43,34 +43,36 @@ pred_quantiles <- function(df, tau, target, R=44){
         message("no valid data for ", country, " between ", start_year, " and ", end_year)
         next
       }
+ 
+      #prediction
+      preds <- unconditional_quantiles(data, tau, n_ahead = 4)
+      preds_l <- preds$preds_l
+      preds_u <- preds$preds_u
+
+      # horizons (quarterly)
+      h_steps <- 1:n_ahead
+      horizons <- h_steps / 4
       
-      tv <- if((i+1) <= nrow(data_by_country)) {
-        data_by_country[[target]][i+1]
-      } else {
-        NA
-      }
+      # target quarter and year
+      tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
+      ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
       
-      #replace NAs with mean 
-      data[is.na(data)] <- mean(data,na.rm=TRUE)
-      
-      pred_l <- quantile(data, probs=(1-tau)/2, type=7, na.rm=TRUE)
-      pred_u <- quantile(data, probs=(1+tau)/2, type=7, na.rm=TRUE)
-      
-      #date target year
-      fq <- end_quarter + 1
-      fy <- end_year + (fq - 1) %/% 4
-      fq <- ((fq - 1) %% 4) + 1
+      # truth values
+      truth_values <- sapply(i + h_steps, function(idx) {
+        if (idx <= nrow(data_by_country)) data_by_country[[target]][idx] else NA
+      })
       
       new_row <- new_pred_row(
         country=country,
         forecast_year = end_year,
-        target_year = fy,
-        target_qaurter = fq,
+        target_year = ty,
+        target_quarter = tq,
         target = target,
+        horizon = horizons,
         tau = tau,
-        lower_bound = pred_l,
-        upper_bound = pred_u,
-        truth_value = tv
+        lower_bound = preds_l,
+        upper_bound = preds_u,
+        truth_value = truth_values
       )
       predictions <- rbind(predictions, new_row)
     }

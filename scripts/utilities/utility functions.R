@@ -60,30 +60,34 @@ interval_score <- function(truth_value, lower_bound, upper_bound, tau){
 #'and upper bounds of Interval and set of levels of tau. 
 #'
 #'@note
-#'input variables truth_value, lower_bound and upper_bound must be same length
+#'input variables truth_value, lower_bound and upper_bound must be same dimensions
+#'first vector of truth_value, lower_bound and upper_bound must be in line with first tau of tau set
 #'
-#'@param truth_value numeric vector of truth values
-#'@param lower_bound numeric vector of lower bound of interval
-#'@param upper_bound numeric vector of upper bound of interval
+#'@param truth_value matrix n x k each column one tau
+#'@param lower_bound matrix n x k each column one tau
+#'@param upper_bound matrix n x k each column one tau
 #'@param tau_set numeric vector of prob of intervals (i.e. c(0.5,0.9) for 50% and 90% Interval)
 #'
 #'@return numeric vector of weighted Interval Scores with same length as input vectors
 weighted_interval_score_multi <- function(truth_value, lower_bound, upper_bound, tau_set) {
   #number of taus
   k <- length(tau_set)
+  
+  #length of truth_values
+  n <- nrow(truth_value)
+  
+  #check for valid tau
   if(k==0){
     warning("tau must be non empty vector of interval probs")
     return(rep(NA_real_, n))
   }
-  #length of truth_values
-  n <- length(truth_value)
   
   #set of interval scores col=taus and row=interval scores 
   IS_mat <- matrix(NA_real_, nrow=n, ncol=k)
   
   #calculate interval scores for each tau
   for(i in 1:k){
-    IS_mat[,i] <- interval_score(truth_value, lower_bound, upper_bound, tau_set[i])
+    IS_mat[,i] <- interval_score(truth_value[,i], lower_bound[,i], upper_bound[,i], tau_set[i])
   }
   
   #weights 
@@ -209,18 +213,34 @@ extract_window <- function(data, i, R, pred_col = "prediction", tv_col = "tv_1")
 #'
 #'@param obs numeric vector of observations
 #'@param tau numeric value of tau 
+#'@param n_ahead numeric value for number of predictions 
 #'
-#'@return lower and upper bound of prediction interval
-unconditional_quantiles <- function(obs, tau) {
+#'@return lower and upper bound of predictions interval 
+#'\describe{
+#'   \item{pred_l}{Lower bound prediction}
+#'   \item{pred_u}{Median prediction}
+#' }
+unconditional_quantiles <- function(obs, tau, n_ahead = 4) {
+  #check for valid tau
   if (!is.numeric(tau) || tau <= 0 || tau >= 1) {
     stop("tau must be between 0 and 1")
   }
   
-  #prediction  
-  lower_bound <- quantile(obs, probs=(1-tau)/2, type=7, na.rm=TRUE)
-  upper_bound <- quantile(obs, probs=(1+tau)/2, type=7, na.rm=TRUE)
+  #replace NAs with median 
+  obs[is.na(obs)] <- median(obs,na.rm=TRUE)
   
-  return(c(lower_bound=lower_bound, upper_bound=upper_bound))
+  #prediction
+  pred_l <- quantile(obs, probs = (1-tau)/2, type=7, na.rm=TRUE)
+  pred_u <- quantile(obs, probs = (1+tau)/2, type=7, na.rm=TRUE)
+  
+  #same quantile prediction for all horizons
+  preds_l <- rep(pred_l, n_ahead)
+  preds_u <- rep(pred_u, n_ahead)
+  
+  return(list(
+    preds_l = preds_l, 
+    preds_u = preds_u
+  ))
 }
 
 
