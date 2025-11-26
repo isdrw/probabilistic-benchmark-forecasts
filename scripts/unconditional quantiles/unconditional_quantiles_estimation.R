@@ -7,7 +7,7 @@ library(dplyr)
 library(tidyr)
 
 #source utility functions
-source("scripts/utilities/utility functions.R")
+source("scripts/utilities/utility_functions.R")
 
 file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
 
@@ -59,7 +59,11 @@ pred_quantiles <- function(df, tau, target, R = 44, n_ahead = 4){
       
       # truth values
       truth_values <- sapply(i + h_steps, function(idx) {
-        if (idx <= nrow(data_by_country)) data_by_country[[target]][idx] else NA
+        if (idx <= nrow(data_by_country)){
+          data_by_country[[target]][idx] 
+        }else{
+          NA
+        }   
       })
       
       new_row <- new_pred_row(
@@ -91,18 +95,18 @@ for(tau in seq(0.1,0.9,0.1)){
 
 pred$IS <- interval_score(pred$truth_value,pred$lower_bound,pred$upper_bound,pred$tau)
 pred$covered <- pred$truth_value >= pred$lower_bound & pred$truth_value <= pred$upper_bound
-pred$WIS_5_8 <- NA
+lower_bound <- matrix(c(pred[pred$tau==0.5&pred$target=="gdp"&pred$forecast_year>=2013,"lower_bound"],
+                        pred[pred$tau==0.8&pred$target=="gdp"&pred$forecast_year>=2013,"lower_bound"]), 
+                      ncol = 2)
+upper_bound <- matrix(c(pred[pred$tau==0.5&pred$target=="gdp"&pred$forecast_year>=2013,"upper_bound"], 
+                        pred[pred$tau==0.8&pred$target=="gdp"&pred$forecast_year>=2013,"upper_bound"]), 
+                      ncol = 2)
+truth_value <- matrix(c(pred[pred$tau==0.5&pred$target=="gdp"&pred$forecast_year>=2013,"truth_value"], 
+                        pred[pred$tau==0.8&pred$target=="gdp"&pred$forecast_year>=2013,"truth_value"]), 
+                      ncol = 2)
 
-IS_lower <- pred[pred$tau==0.5,"IS"]
-IS_upper <- pred[pred$tau==0.8,"IS"]
-tau_lower <- pred[pred$tau==0.5,"tau"]
-tau_upper <- pred[pred$tau==0.8,"tau"]
+mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
 
-WIS_5_8 <- weighted_interval_score(IS_lower, tau_lower, IS_upper, tau_upper)
-pred$WIS_5_8 <- NA
-pred[pred$tau==0.5,"WIS_5_8"] <- WIS_5_8
-pred[pred$tau==0.8,"WIS_5_8"] <- WIS_5_8
+mean(pred[pred$tau=="0.6"&pred$target=="gdp"&pred$horizon==0.25&pred$forecast_year>=2013, "covered"], na.rm=TRUE)
 
 
-mean(pred[pred$tau==0.8&pred$target=="gdp","WIS_5_8"],na.rm = TRUE)
-mean(pred[pred$tau=="0.9"&pred$target=="gdp"&pred$target_year>=2013,"covered"],na.rm = TRUE)

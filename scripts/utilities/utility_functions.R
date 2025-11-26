@@ -35,7 +35,7 @@ interval_score <- function(truth_value, lower_bound, upper_bound, tau){
   }
   
   #non NA index
-  valid <- !(is.na(truth_value) || is.na(lower_bound) || is.na(upper_bound))
+  valid <- !(is.na(truth_value) | is.na(lower_bound) | is.na(upper_bound))
   
   #output vector 
   IS <- rep(NA_real_,n)
@@ -69,7 +69,7 @@ interval_score <- function(truth_value, lower_bound, upper_bound, tau){
 #'@param tau_set numeric vector of prob of intervals (i.e. c(0.5,0.9) for 50% and 90% Interval)
 #'
 #'@return numeric vector of weighted Interval Scores with same length as input vectors
-weighted_interval_score_multi <- function(truth_value, lower_bound, upper_bound, tau_set) {
+weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_set) {
   #number of taus
   k <- length(tau_set)
   
@@ -91,7 +91,7 @@ weighted_interval_score_multi <- function(truth_value, lower_bound, upper_bound,
   }
   
   #weights 
-  weights <- (rep(1,k) - tau_set)/2
+  weights <- matrix((rep(1,k) - tau_set)/2, ncol=1)
   #weighted interval score computation
   WIS <- (IS_mat %*% weights) / (k+0.5)
   
@@ -373,16 +373,16 @@ predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
   
   for (h in 1:n_ahead) {
     
-    # construct dataframe for prediction: one row, named lag_1, lag_2, ...
+    #construct dataframe for prediction: one row, named lag_1, lag_2, ...
     new_data <- as.data.frame(t(lag_vec))
     names(new_data) <- paste0("lag_", 1:nlag)
     
-    # predict lower, median, upper
+    #predict lower, median, upper quantile
     pred_l[h] <- as.numeric(predict(fit_l, newdata = new_data))
     pred_m[h] <- as.numeric(predict(fit_m, newdata = new_data))
     pred_u[h] <- as.numeric(predict(fit_u, newdata = new_data))
     
-    # update lag vector: recursive → median prediction becomes new first lag
+    #update lag vector: recursive --> median prediction becomes new first lag
     lag_vec <- c(pred_m[h], head(lag_vec, nlag - 1))
   }
   

@@ -216,7 +216,10 @@ calc_weighted_IS <- function(df_set) {
 
 #find best rolling window on training dataset for g7 countries to calculate prediction interval
 #based on quantiles of fitted normal distribution
-#best R between 1 and 20 is R for which average weighted Interval score over all taus and 
+#best R between 1 and 20 is R for which average weighted Interval score over all taus 
+#found insignificant differences between rolling windows of 11-16 --> 11 for better comparability 
+#to other methods
+
 best_R <- 5
 best_score <- Inf
 score_list <- list()

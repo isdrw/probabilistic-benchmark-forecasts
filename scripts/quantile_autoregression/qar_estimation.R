@@ -10,7 +10,7 @@ library(forecast)
 library(quantreg)
 
 #load functions
-source("scripts/utilities/utility functions.R")
+source("scripts/utilities/utility_functions.R")
 
 #path
 file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
@@ -134,20 +134,16 @@ for(tau in seq(0.1,0.9,0.1)){
   pred <- rbind(pred,fit_qar_on_df(df,tau = tau,target = "cpi"))
 }
 
-pred$IS <- interval_score(pred$truth_value,pred$lower_bound,pred$upper_bound,pred$tau)
 pred$covered <- pred$truth_value >= pred$lower_bound & pred$truth_value <= pred$upper_bound
 
-IS_lower <- pred[pred$tau==0.5,"IS"]
-IS_upper <- pred[pred$tau==0.8,"IS"]
-tau_lower <- pred[pred$tau==0.5,"tau"]
-tau_upper <- pred[pred$tau==0.8,"tau"]
+lower_bound <- cbind(pred %>% filter(tau==0.5, target=="gdp", forecast_year>=2013) %>% pull(lower_bound),
+                     pred %>% filter(tau==0.8, target=="gdp", forecast_year>=2013) %>% pull(lower_bound))
+upper_bound <- cbind(pred %>% filter(tau==0.5, target=="gdp", forecast_year>=2013) %>% pull(upper_bound),
+                     pred %>% filter(tau==0.8, target=="gdp", forecast_year>=2013) %>% pull(upper_bound))
+truth_value <- cbind(pred %>% filter(tau==0.5, target=="gdp", forecast_year>=2013) %>% pull(truth_value),
+                     pred %>% filter(tau==0.8, target=="gdp", forecast_year>=2013) %>% pull(truth_value))
 
-WIS_5_8 <- weighted_interval_score(IS_lower, tau_lower, IS_upper, tau_upper)
-pred$WIS_5_8 <- NA
-pred[pred$tau==0.5,"WIS_5_8"] <- WIS_5_8
-pred[pred$tau==0.8,"WIS_5_8"] <- WIS_5_8
+mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
 
-mean(pred[pred$tau==0.8&pred$target=="gdp","WIS_5_8"],na.rm = TRUE)
-
-mean(pred[pred$tau=="0.9"&pred$target=="cpi"&pred$horizon==0.25&pred$target_year>=2013,"covered"],na.rm = TRUE)
+mean(pred[pred$tau=="0.9"&pred$target=="gdp"&pred$horizon==1.0&pred$forecast_year>=2013,"covered"],na.rm = TRUE)
 write.csv(pred,"results/qar_estimation/qar_prediction.csv")
