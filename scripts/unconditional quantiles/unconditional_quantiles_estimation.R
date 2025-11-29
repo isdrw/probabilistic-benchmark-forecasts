@@ -5,91 +5,105 @@ gc()
 library(arrow)
 library(dplyr)
 library(tidyr)
+library(purrr)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
+source("scripts/utilities/data_transformation_functions.R")
 
-file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
+#load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
+df <- load_and_prepare_oecd_data()
 
-#read file
-df <- read.csv(file_path)
 
-#split year and quarters
-df <- df |>
-  tidyr::separate(dt,into=c("year","quarter"),sep = " ")
 
-df$year <- as.numeric(df$year)
-df$quarter <- as.numeric(gsub("Q","",df$quarter))
-countries <- unique(df$ccode)
-
-pred_quantiles <- function(df, tau, target, R = 44, n_ahead = 4){
+pred_quantiles <- function(df, country, tau, target, R = 44, n_ahead = 4){
   
   #initialize prediction dataframe
   predictions <- init_output_df()
   
-  for(country in countries){
-    data_by_country <- df[df$ccode==country,]
+  #group data by country
+  data_by_country <- df %>% 
+    filter(country == !!country) %>%
+    arrange(forecast_year, forecast_quarter)
     
-    for(i in seq(44,nrow(data_by_country))){
-      data <- data_by_country[(i-44+1):i,][[target]]
-      #start date of observations 
-      end_year <- data_by_country[i,"year"]
-      start_year <- data_by_country[i-44+1,"year"]
-      end_quarter <- data_by_country[i,"quarter"]
-      start_quarter <- data_by_country[i-44+1,"quarter"]
-      
-      #skip if only NAs
-      if(all(is.na(data)) || is.null(data)){
-        message("no valid data for ", country, " between ", start_year, " and ", end_year)
-        next
-      }
- 
-      #prediction
-      preds <- unconditional_quantiles(data, tau, n_ahead = 4)
-      preds_l <- preds$preds_l
-      preds_u <- preds$preds_u
-
-      # horizons (quarterly)
-      h_steps <- 1:n_ahead
-      horizons <- h_steps / 4
-      
-      # target quarter and year
-      tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
-      ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
-      
-      # truth values
-      truth_values <- sapply(i + h_steps, function(idx) {
-        if (idx <= nrow(data_by_country)){
-          data_by_country[[target]][idx] 
-        }else{
-          NA
-        }   
-      })
-      
-      new_row <- new_pred_row(
-        country=country,
-        forecast_year = end_year,
-        target_year = ty,
-        target_quarter = tq,
-        target = target,
-        horizon = horizons,
-        tau = tau,
-        lower_bound = preds_l,
-        upper_bound = preds_u,
-        truth_value = truth_values
-      )
-      predictions <- rbind(predictions, new_row)
+  for(i in seq(44,nrow(data_by_country))){
+    data <- data_by_country[(i-44+1):i,][[target]]
+    #start date of observations 
+    end_year <- data_by_country[i,"forecast_year"]
+    start_year <- data_by_country[i-44+1,"forecast_year"]
+    end_quarter <- data_by_country[i,"forecast_quarter"]
+    start_quarter <- data_by_country[i-44+1,"forecast_quarter"]
+    
+    #skip if only NAs
+    if(all(is.na(data)) || is.null(data)){
+      message("no valid data for ", country, " between ", start_year, " and ", end_year)
+      next
     }
+
+    #prediction
+    preds <- unconditional_quantiles(data, tau, n_ahead = 4)
+    preds_l <- preds$preds_l
+    preds_u <- preds$preds_u
+
+    # horizons (quarterly)
+    h_steps <- 1:n_ahead
+    horizons <- h_steps / 4
+    
+    # target quarter and year
+    tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
+    ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
+    
+    # truth values
+    truth_values <- sapply(i + h_steps, function(idx) {
+      if (idx <= nrow(data_by_country)){
+        data_by_country[[target]][idx] 
+      }else{
+        NA
+      }   
+    })
+    
+    new_row <- new_pred_row(
+      country=country,
+      forecast_year = end_year,
+      target_year = ty,
+      target_quarter = tq,
+      target = target,
+      horizon = horizons,
+      tau = tau,
+      lower_bound = preds_l,
+      upper_bound = preds_u,
+      truth_value = truth_values
+    )
+    predictions <- rbind(predictions, new_row)
   }
+
       
   return(predictions)
 }
 
-pred <- init_output_df()
+
+grid <- crossing(
+  country = unique(df$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("tv_gdp", "tv_cpi")
+)
+
+pred_test <- grid %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target),
+      ~ pred_quantiles(df, ..1, ..2, ..3)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
 
 for(tau in seq(0.1,0.9,0.1)){
   for(target in c("gdp","cpi")){
-    pred <-  rbind(pred,pred_quantiles(df,tau,target))
+    for(country in unique(df$country)){
+      pred <-  rbind(pred,pred_quantiles(df,country,tau,target))  
+    }
+    
   }
 }
 
