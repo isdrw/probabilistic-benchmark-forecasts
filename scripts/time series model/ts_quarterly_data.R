@@ -21,14 +21,10 @@ df$year <- as.numeric(df$year)
 df$quarter <- as.numeric(gsub("Q","",df$quarter))
 countries <- unique(df$ccode)
 
-filter_df <- function(df, filters) {
-  df %>%
-    filter(across(all_of(names(filters)), ~ . == filters[[cur_column()]]))
-}
 
 #Function to fit ARIMA model either with given order or with automatic
 #fitting of best order according to AIC
-fit_arima <- function(df,target,order=c(1,0,0),auto=FALSE){
+fit_arima <- function(df, country, target, order=c(1,0,0), auto=FALSE){
   
   #prediction
   predictions <- data.frame(

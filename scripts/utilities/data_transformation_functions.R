@@ -156,7 +156,6 @@ rename_cols_oecd <- function(df){
            tv_gdp = gdp,
            tv_cpi = cpi)
 }
-df %>% remove_cols_oecd() %>% split_date_oecd() %>% rename_cols_oecd() %>% head()
 
 #'prepare oecd dataframe
 #'
