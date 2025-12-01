@@ -14,6 +14,11 @@ source("scripts/utilities/data_transformation_functions.R")
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
 df_oecd <- load_and_prepare_oecd_data()
 
+#load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
+df_weo <- load_and_prepare_WEO_data()
+
+df_weo_g7 <- df_weo %>% filter(g7 == 1)
+
 pred_quantiles <- function(df, country, tau, target, R = 44, n_ahead = 4){
   
   #initialize prediction dataframe
@@ -31,10 +36,10 @@ pred_quantiles <- function(df, country, tau, target, R = 44, n_ahead = 4){
   for(i in seq(R,nrow(data_by_country))){
     data <- data_by_country[(i-R+1):i,][[target]]
     #start date of observations 
-    end_year <- data_by_country[i,"forecast_year"]
-    start_year <- data_by_country[i-R+1,"forecast_year"]
-    end_quarter <- data_by_country[i,"forecast_quarter"]
-    start_quarter <- data_by_country[i-R+1,"forecast_quarter"]
+    end_year <- as.numeric(data_by_country[i,"forecast_year"])
+    start_year <- as.numeric(data_by_country[i-R+1,"forecast_year"])
+    end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
+    start_quarter <- as.numeric(data_by_country[i-R+1,"forecast_quarter"])
     
     #skip if only NAs
     if(all(is.na(data)) || is.null(data)){
@@ -87,6 +92,73 @@ pred_quantiles <- function(df, country, tau, target, R = 44, n_ahead = 4){
 }
 
 
+
+pred_quantiles_weo <- function(df, country, tau, target, h, nlag=1, R=11){
+  
+  #prediction dataframe
+  predictions <- init_output_df()
+  
+  #output list 
+  out_list <- list()
+  index <- 1
+  
+  #group data by country
+  data_by_country <- df %>% 
+    filter(country == !!country, horizon == h) %>%
+    arrange(forecast_year, forecast_quarter)
+  
+  for(i in seq(R,nrow(data_by_country))){
+    data <- data_by_country[(i-R+1):i,][[target]]
+    
+    #start and end date of rolling window 
+    end_year <- as.numeric(data_by_country[i,"forecast_year"])
+    start_year <- as.numeric(data_by_country[i-R+1,"forecast_year"])
+    end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
+    start_quarter <- as.numeric(data_by_country[i-R+1,"forecast_quarter"])
+    
+    #skip if only NAs
+    if(all(is.na(data)) || is.null(data)){
+      message("no valid data for ", country, " between ", start_year, " and ", end_year)
+      next
+    }
+    
+    #prediction
+    preds <- unconditional_quantiles(data, tau, n_ahead = 1)
+    preds_l <- preds$preds_l
+    preds_u <- preds$preds_u
+    
+    # target quarter and year vectors based on  forecasts
+    tq <- (end_quarter + 4 * (h - floor(h)) - 1) %% 4 + 1
+    ty <- as.numeric(data_by_country[i,"target_year"])
+    
+    # truth values
+    truth_value <- if (i+1 <= nrow(data_by_country)){
+      data_by_country[[target]][i+1] 
+    }else{
+      NA
+    } 
+    
+    # build all rows at once
+    out_list[[index]] <- new_pred_row(
+      country = country,
+      forecast_year = end_year,
+      target_year = ty,
+      target_quarter = tq,
+      horizon = h,
+      target = target,
+      tau = tau,
+      lower_bound = preds_l,
+      upper_bound = preds_u,
+      truth_value = truth_value,
+    )
+    
+    index <- index + 1
+    
+  }
+  predictions <- bind_rows(out_list)
+  return(predictions)
+}
+
 #=================
 #prediction on quarterly data (OECD dataset)
 #=================
@@ -138,3 +210,58 @@ mean(pred %>% filter(tau == 0.8, forecast_year >= 2013, target == "tv_gdp", hori
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred, paste0("results/unconditional_quantiles/unconditional_quantiles_", timestamp, ".csv"), row.names = FALSE)
+
+
+#=================
+#prediction on annual data (WEO dataset)
+#=================
+
+#create grid 
+grid_weo <- crossing(
+  country = unique(df_weo_g7$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("tv_gdp", "tv_cpi"),
+  horizon = c(0.5, 1.0)
+)
+
+#predict intervals for all combinations 
+pred_weo <- grid_weo %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ pred_quantiles_weo(df_weo_g7, ..1, ..2, ..3, ..4)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+
+#truth value within predicted interval?
+pred_weo$covered <- pred_weo$truth_value >= pred_weo$lower_bound & pred_weo$truth_value <= pred_weo$upper_bound
+
+#input for calculation of WIS for 50% and 80% prediction intervals
+#forecast years 2013 and above and the target gdp cummulated over all g7 countries
+lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
+                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
+upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
+                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
+truth_value <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
+                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
+
+#mean Interval scores for 50% and 80% prediction intervals
+#forecast years 2013 and above and the target gdp cummulated over all g7 countries
+mean(interval_score(truth_value[,1], lower_bound[,1], upper_bound[,1], 0.5), na.rm=TRUE)
+mean(interval_score(truth_value[,2], lower_bound[,2], upper_bound[,2], 0.8), na.rm=TRUE)
+
+#mean WIS 
+mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
+
+#check calibration by calculating coverage for 80% prediction intervals, 
+#forecast year 2013 and above, cummulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+mean(pred_weo %>% filter(tau == 0.5, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+mean(pred_weo %>% filter(tau == 0.8, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+
+#save pred_weoiction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_weo, paste0("results/unconditional_quantiles/unconditional_quantiles_annual_", timestamp, ".csv"), row.names = FALSE)

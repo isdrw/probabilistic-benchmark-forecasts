@@ -38,27 +38,6 @@ fit_iqr <- data.frame(
 )
 
 
-fit_iqr <- df_training %>%
-  group_by(country,target,horizon) %>%
-  group_map(function(.x,.y){
-    y_t <- .x$tv_1
-    y_t_hat <- .x$prediction
-    
-    rows <- lapply(taus,function(tau){
-      fit <- rq(y_t ~ y_t_hat,tau = tau)
-      new_row <- data.frame(
-        country=.y$country,
-        target=.y$target,
-        horizon=.y$horizon,
-        tau=tau,
-        iqr=I(list(fit))
-      )
-    })
-    bind_rows(rows)
-  })
-
-
-
 fit_lqr <- function(df, tau, target, R=11){
   
   #prediction dataframe
