@@ -9,6 +9,11 @@ library(nortest)
 library(fitdistrplus)
 library(forecast)
 library(quantreg)
+library(purrr)
+
+#source utility functions
+source("scripts/utilities/utility_functions.R")
+source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare WEO data
 df <- load_and_prepare_WEO_data()
@@ -30,19 +35,25 @@ fit_lqr <- function(df, country, tau, target, h, R=11){
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country))){
+  for(i in seq(R,nrow(data_by_country)-1)){
     #predicted value vector
     data_pred <- data_by_country[(i-R+1):i,][[paste0("pred_", target)]]
+    
+    #last prediction and truth value of point after rolling window
+    last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
+    truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
+    
     #truth value vector
     data_tv1 <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
 
-    
-    #start and end date of rolling window
+    #start date of rolling window
     forecast_year_start <- data_by_country[(i-R+1),"forecast_year"]
-    forecast_year_end <- data_by_country[i,"forecast_year"]
     
-    #date of target year
-    target_year_end <- data_by_country[i,"target_year"]
+    #forecast year of point after rolling window for prediction
+    forecast_year_end <- data_by_country[i+1,"forecast_year"]
+    
+    #target year of point after rolling window for prediction
+    target_year_end <- data_by_country[i+1,"target_year"]
     
     #skip if only NAs
     if(all(is.na(data_pred)) || is.null(data_pred) || 
@@ -74,31 +85,24 @@ fit_lqr <- function(df, country, tau, target, h, R=11){
     }
     
     #prediction of quantile based on last point forecast
-    last_pred <- tail(data_pred, 1)
     new_data <- data.frame(data_pred = last_pred)
     pred_l <- as.numeric(predict(fit_l, newdata = new_data))
     pred_u <- as.numeric(predict(fit_u, newdata = new_data))
     
-    # truth values
-    truth_value <- if (i+1 <= nrow(data_by_country)){
-      data_by_country[[paste0("tv_", target)]][i+1] 
-    }else{
-      NA
-    } 
-    
-    out_list[[index]] <- data.frame(
+    #new row
+    out_list[[index]] <- new_pred_row(
       country = country,
       forecast_year = forecast_year_end,
       target_year = target_year_end,
-      horizon = h,
       target = target,
+      horizon = h,
       tau = tau,
       lower_bound = pred_l,
       upper_bound = pred_u,
       truth_value = truth_value,
-      stringsAsFactors = FALSE
+      prediction = last_pred
     )
-    
+   
     index <- index + 1
   }
   
@@ -135,12 +139,12 @@ pred_weo$covered <- pred_weo$truth_value >= pred_weo$lower_bound & pred_weo$trut
 
 #input for calculation of WIS for 50% and 80% prediction intervals
 #forecast years 2013 and above and the target gdp cummulated over all g7 countries
-lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
-upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
-truth_value <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
+lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
+                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
+upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
+                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
+truth_value <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
+                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
 
 #mean Interval scores for 50% and 80% prediction intervals
 #forecast years 2013 and above and the target gdp cummulated over all g7 countries
@@ -153,9 +157,9 @@ mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8))
 #check calibration by calculating coverage for 80% prediction intervals, 
 #forecast year 2013 and above, cummulated over all g7 countries
 #TODO Mincer Zarnowitz regression for better evaluation of calibration
-mean(pred_weo %>% filter(tau == 0.5, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
-mean(pred_weo %>% filter(tau == 0.8, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+mean(pred_weo %>% filter(tau == 0.5, forecast_year >= 2013, target == "gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+mean(pred_weo %>% filter(tau == 0.8, forecast_year >= 2013, target == "gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/unconditional_quantiles/unconditional_quantiles_annual_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_weo, paste0("results/linear_quantile_regression/ldr_prediction_", timestamp, ".csv"), row.names = FALSE)

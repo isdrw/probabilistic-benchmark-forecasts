@@ -176,3 +176,8 @@ load_and_prepare_oecd_data <- function(){
   return(df)
 }
 
+# ===========================
+## preparation of random walk data based on quarterly data 
+## of oecd_quarterly_data.csv
+## path "data/raw/IMF WEO/oecd_quarterly_data.csv"
+# ===========================

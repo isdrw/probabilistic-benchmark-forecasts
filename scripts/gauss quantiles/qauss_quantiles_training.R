@@ -7,23 +7,19 @@ library(dplyr)
 library(tidyr)
 library(nortest)
 library(fitdistrplus)
+library(forecast)
+library(quantreg)
+library(purrr)
 
-#path
-file_path <- r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"
+#source utility functions
+source("scripts/utilities/utility_functions.R")
+source("scripts/utilities/data_transformation_functions.R")
 
-#read data file
-df <- read_parquet(file_path)
+#load and prepare WEO data
+df <- load_and_prepare_WEO_data()
 
-#prediction errors
-df$err <- df$prediction-df$tv_1
-
-#training dataset
-df_training <- df[df$forecast_year<=2012&df$g7==1,]
-df_holdout <- df[df$forecast_year>=2013-16&df$g7==1,]
-
-countries <- unique(df_holdout$country)
-target_variables <- unique(df_holdout$target)
-
+#filter for G7 countries
+df_weo_g7 <- df %>% filter(g7 == 1)
 
 fit_normal_distribution <- function(x,default_mean=0,default_sd=1){
   #remove NAs and infinite values
@@ -47,23 +43,14 @@ fit_normal_distribution <- function(x,default_mean=0,default_sd=1){
   return(fit_n)
 }
 
-#filter function for dataframe
-filter_df <- function(df, filters) {
-  df %>%
-    filter(across(all_of(names(filters)), ~ . == filters[[cur_column()]]))
-}
+
 
 #function to calculate quantiles of fitted normal distribution and prediction interval
-calc_pred_interval <- function(df, country, target_variable, R, h, tau, fit_mean=TRUE){
+calc_pred_interval <- function(df, country, target_variable, R=11, h, tau, fit_mean=FALSE){
   #filtered df for given h
-  df_filtered <- filter_df(
-    df,
-    list(
-      country=country,
-      target=target_variable,
-      horizon=h
-    )
-  )
+  df_filtered <- df %>% 
+    filter(country == !!country, target == target_variable, horizon == h) %>% 
+    arrange(forecast_year, forecast_quarter)
   
   #empty output dataframe
   df_quantiles <- data.frame(
