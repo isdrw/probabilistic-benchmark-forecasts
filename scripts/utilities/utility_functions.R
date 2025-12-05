@@ -162,6 +162,7 @@ new_pred_row <- function(country, forecast_year, target_year, target, target_qua
       lower_bound = lower_bound,
       upper_bound = upper_bound,
       truth_value = truth_value,
+      prediction = prediction,
       stringsAsFactors = FALSE
     )
   }else{
@@ -205,6 +206,32 @@ extract_window <- function(data, i, R, pred_col = "prediction", tv_col = "tv_1")
 # 5. Model fitting observation based
 # ---------------------------
 
+#'function fits normal distribution on vector x
+#'
+#'@param x numeric vector of observations
+#'@param mean numeric value of default mean (0) to be returned if fit fails
+#'#'@param sd numeric value of default standard deviation (1) to be returned if fit fails
+fit_normal_distribution <- function(x,mean = 0,sd = 1){
+  #remove NAs and infinite values
+  x_clean <- x[!is.na(x)&is.finite(x)]
+  
+  #check for singular value and/or sd == 0
+  if(length(x_clean)<2 || sd(x_clean)==0){
+    #return standard normal distribution
+    return(list(estimate=c(mean = mean, sd = sd)))
+  }
+  
+  fit_n <- tryCatch(
+    fitdist(x_clean,distr = "norm"),
+    error = function(e){
+      warning("fitdist failed to fit normal distribution: ", conditionMessage(e))
+      #return standard normal distribution
+      return(list(estimate=c(mean = mean, sd = sd)))
+    }
+  )
+  
+  return(fit_n)
+}
 
 #'compute prediction interval for method unconditional quantiles (observation based)
 #'@description

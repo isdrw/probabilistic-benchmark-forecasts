@@ -7,86 +7,99 @@ library(dplyr)
 library(tidyr)
 library(tseries)
 library(forecast)
-#path
-file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
+library(purrr)
 
-#read file
-df <- read.csv(file_path)
+#source utility functions
+source("scripts/utilities/utility_functions.R")
+source("scripts/utilities/data_transformation_functions.R")
 
-#split year and quarters
-df <- df |>
-  tidyr::separate(dt,into=c("year","quarter"),sep = " ")
-
-df$year <- as.numeric(df$year)
-df$quarter <- as.numeric(gsub("Q","",df$quarter))
-countries <- unique(df$ccode)
+#load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
+df_oecd <- load_and_prepare_oecd_data()
 
 
-fit_rw <- function(df,target){
+fit_rw <- function(df, country, target, n_ahead = 4){
   
-  #prediction
-  predictions <- data.frame(
-    country=character(),
-    forecast_year=numeric(),
-    target_year=numeric(),
-    target_quarter=numeric(),
-    horizon=numeric(),
-    target=character(),
-    truth_value=numeric(),
-    prediction=numeric()
-  )
+  #prediction dataframe
+  predictions <- init_output_df(interval = FALSE)
   
-  countries <- unique(df$ccode)
+  #output list 
+  out_list <- list()
+  index <- 1
   
-  for(country in countries){
-    #time series data for each country and target
-    data_by_country <- df[df$ccode==country,]
-    
-    n <- nrow(data_by_country)
-    for(i in 2:n){
-      last_value <- data_by_country[[target]][i-1]
-      if(is.na(last_value)){
-        next
-      }
-      
-      tv_end <- min(i + 3, n)
-      truth_values <- data_by_country[(i):tv_end, ][[target]]
-      #fill with NA for non-existent truth_values
-      if(length(truth_values) < 4){
-        truth_values <- c(truth_values, rep(NA, 4 - length(truth_values)))
-      }
-      
-      #start/end date of observations 
-      start_year <- data_by_country[i-1,"year"]
-      start_quarter <- data_by_country[i-1,"quarter"]
-      
-      #random walk prediction (last observation)
-      rw_pred <- rep(last_value,4)
-      
-      #target dates
-      target_quarter_seq <- (start_quarter + 0:3)%%4 + 1
-      horizon_seq <- c(0.25,0.5,0.75,1.0)
-      target_year_seq <- start_year + floor(start_quarter/4 -0.25 + horizon_seq)
-      
-      new_row_pred <- data.frame(
-        country=rep(country,times=4),
-        forecast_year=start_year,
-        target_year=target_year_seq,
-        target_quarter=target_quarter_seq,
-        horizon=horizon_seq,
-        target=rep(target,times=4),
-        truth_value=truth_values,
-        prediction=rw_pred
-      )
-      
-      #append dataframe
-      predictions <- dplyr::bind_rows(predictions, new_row_pred)
+  
+
+  #time series data for each country and target
+  data_by_country <- df %>% 
+    filter(country == !!country) %>%
+    arrange(forecast_year, forecast_quarter)
+  
+  n <- nrow(data_by_country)
+  for(i in 2:n){
+    last_value <- data_by_country[[target]][i-1]
+    if(is.na(last_value)){
+      next
     }
+    
+    tv_end <- min(i + n_ahead - 1, n)
+    truth_values <- data_by_country[i:tv_end, ][[target]]
+    #fill with NA for non-existent truth_values
+    if(length(truth_values) < n_ahead){
+      truth_values <- c(truth_values, rep(NA, n_ahead - length(truth_values)))
+    }
+    
+    #start/end date of observations 
+    end_year <- data_by_country[i-1,"forecast_year"]
+    end_quarter <- data_by_country[i-1,"forecast_quarter"]
+    
+    #random walk prediction (last observation)
+    pred_rw <- rep(last_value, n_ahead)
+    
+    # horizons (quarterly)
+    h_steps <- 1:n_ahead
+    horizons <- h_steps / 4
+    
+    # target quarter and year vectors based on n_ahead forecasts
+    tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
+    ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
+    
+    out_list[[index]] <- new_pred_row(
+      country = rep(country,n_ahead),
+      forecast_year = rep(end_year,n_ahead),
+      target_year = ty,
+      target_quarter = tq,
+      horizon = horizons,
+      target = rep(target,n_ahead),
+      truth_value = truth_values,
+      prediction = pred_rw,
+      interval = FALSE,
+    )
+    
+    index <- index + 1
+    
   }
+  
+  predictions <- bind_rows(out_list)
+  
   return(predictions)
 }
 
-predictions <- fit_rw(df,"gdp")
-predictions <- rbind(predictions, fit_rw(df,target="cpi"))
+#create grid 
+grid <- crossing(
+  country = unique(df_oecd$country),
+  target = c("tv_gdp", "tv_cpi")
+)
 
-write.csv(predictions,"data/processed/point predictions/point_predictions_rw1.csv")
+#fit ARIMA(1,0,0) on quarterly OECD data with rolling window
+pred_rw <- grid %>% 
+  mutate(
+    results = pmap(
+      list(country, target),
+      ~ fit_rw(df_oecd, ..1, ..2)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+write.csv(pred_rw, "data/processed/point predictions/point_predictions_rw.csv", row.names = FALSE)
+
+
