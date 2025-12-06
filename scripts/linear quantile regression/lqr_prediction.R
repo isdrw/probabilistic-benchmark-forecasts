@@ -138,7 +138,7 @@ pred_weo <- grid_weo %>%
 pred_weo$covered <- pred_weo$truth_value >= pred_weo$lower_bound & pred_weo$truth_value <= pred_weo$upper_bound
 
 #input for calculation of WIS for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cummulated over all g7 countries
+#forecast years 2013 and above and the target gdp cumulated over all g7 countries
 lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
                      pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
 upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),

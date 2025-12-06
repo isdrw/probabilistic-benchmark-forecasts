@@ -98,6 +98,50 @@ weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_s
   return(WIS)
 }
 
+#'function creates matrix for given set of taus and column name
+#'@description The function creates a matrix with dimensions length(column) X length(taus)
+#'where each column is a vector of the specified column name from the dataframe df 
+#'for each tau in taus the respective column of the dataframe is pulled
+#'The Matrix is used for the calculation of the WIS with the function 
+#'weighted_interval_score(truth_value, lower_bound, upper_bound, tau_set)
+#'@param df dataframe of predictions
+#'@param column name to be pulled
+#'@param taus set of taus to be 
+make_tau_matrix <- function(df, column, taus) {
+  #convert taus to character because of comparison issues of numeric values (0.3 and 0.6)
+  taus <- as.character(taus)
+  
+  df %>%
+    dplyr::mutate(tau = as.character(tau)) %>%
+    dplyr::filter(tau %in% taus) %>%
+    dplyr::group_by(tau) %>%
+    dplyr::summarise(vals = list(.data[[column]]), .groups = "drop") %>%
+    dplyr::arrange(tau) %>%
+    dplyr::pull(vals) %>%
+    do.call(cbind, .)
+}
+
+
+calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
+  #lower_bound matrix
+  lower_bound_mat <- make_tau_matrix(df = df, "lower_bound", taus = taus)
+  
+  #upper_bound matrix
+  upper_bound_mat <- make_tau_matrix(df = df, "upper_bound", taus = taus)
+  
+  #truth_value matrix
+  truth_value_mat <- make_tau_matrix(df = df, "truth_value", taus = taus)
+  
+  #calculate WIS vector
+  WIS <- weighted_interval_score(
+    lower_bound = lower_bound_mat, 
+    upper_bound = upper_bound_mat, 
+    truth_value = truth_value_mat, 
+    tau_set = taus
+  )
+  
+  return(WIS)
+}
 
 # ===========================
 ## prediction output functions
@@ -179,27 +223,6 @@ new_pred_row <- function(country, forecast_year, target_year, target, target_qua
     )
   }
   return(new_row)
-}
-
-# ---------------------------
-# 4. Data preparation helpers
-# ---------------------------
-prepare_lqr_input <- function(df, country, target, horizon_value) {
-  sub <- df[df$country == country & df$target == target & df$horizon == horizon_value, , drop = FALSE]
-  ensure_types(sub)
-}
-
-extract_window <- function(data, i, R, pred_col = "prediction", tv_col = "tv_1") {
-  n <- nrow(data)
-  start <- i - R + 1
-  if(start < 1) stop("Window start < 1")
-  pred_vec <- data[start:i, pred_col]
-  tv_vec   <- data[start:i, tv_col]
-  next_tv  <- if((i + 1) <= n) data[i + 1, tv_col] else NA_real_
-  list(pred = pred_vec, tv1 = tv_vec, tv1_next = next_tv,
-       forecast_year_end = data$forecast_year[i],
-       target_year_end = data$target_year[i],
-       end_row = i, n = n)
 }
 
 # ---------------------------
@@ -420,108 +443,53 @@ predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
   ))
 }
 
-# Requires quantreg
-fit_lqr_models <- function(pred_vec, tv_vec, tau) {
-  # build dataframe for rq: tv_vec ~ pred_vec
-  df_fit <- data.frame(data_tv1 = tv_vec, data_pred = pred_vec)
-  # remove NA rows
-  ok <- complete.cases(df_fit)
-  df_fit <- df_fit[ok, , drop = FALSE]
-  if(nrow(df_fit) < 5) return(list(fit_l = NULL, fit_m = NULL, fit_u = NULL))
-  tau_l <- (1 - tau) / 2
-  tau_m <- 0.5
-  tau_u <- (1 + tau) / 2
-  fit_l <- tryCatch(quantreg::rq(data_tv1 ~ data_pred, tau = tau_l, data = df_fit), error = function(e) NULL)
-  fit_m <- tryCatch(quantreg::rq(data_tv1 ~ data_pred, tau = tau_m, data = df_fit), error = function(e) NULL)
-  fit_u <- tryCatch(quantreg::rq(data_tv1 ~ data_pred, tau = tau_u, data = df_fit), error = function(e) NULL)
-  list(fit_l = fit_l, fit_m = fit_m, fit_u = fit_u)
-}
+# ---------------------------
+## PAVA correction function
+# ---------------------------
 
-predict_lqr <- function(fits, last_pred) {
-  if(is.null(fits$fit_l) || is.null(fits$fit_m) || is.null(fits$fit_u)) return(list(lower = NA_real_, upper = NA_real_, median = NA_real_))
-  newdata <- data.frame(data_pred = last_pred)
-  lower <- tryCatch(as.numeric(predict(fits$fit_l, newdata = newdata)), error = function(e) NA_real_)
-  upper <- tryCatch(as.numeric(predict(fits$fit_u, newdata = newdata)), error = function(e) NA_real_)
-  median <- tryCatch(as.numeric(predict(fits$fit_m, newdata = newdata)), error = function(e) NA_real_)
-  list(lower = lower, upper = upper, median = median)
-}
+#'function applies pava-type algorithm on x
+#'@desctiption function replaces points that violate isotonicity 
+#'with their pairwise mean and repeats until no violations are found within given tolerance;
+#'This approach will lead to same weights within groups of violations, 
+#'i.e. group x_i,...,x_i+h violate isotonicity will all be replaced with roughly
+#'1/h * sum(x_i,...,x_i+h)
+#'
+#'@note function not suitable for large amount of data
+#'@param x numeric vector of data
+#'@param increasing boolean, TRUE --> x_i <= x_i+1, FALSE --> x_i >= x_i+1
+#'@param tolerance numeric value of tolerance to which comparison will be evaluated
 
-# ---------------------------
-# 6. Output row builder
-# ---------------------------
-create_output_row <- function(country, fy, ty, fq, h, target, tau, pred_l, pred_u, truth) {
-  data.frame(
-    country = country,
-    forecast_year = fy,
-    target_year = ty,
-    target_quarter = fq,
-    horizon = h,
-    target = target,
-    tau = tau,
-    lower_bound = pred_l,
-    upper_bound = pred_u,
-    truth_value = truth,
-    stringsAsFactors = FALSE
-  )
-}
-
-# ---------------------------
-# 7. Modular fit_lqr (uses the helpers)
-# ---------------------------
-# df must contain columns: country, target, horizon, prediction, tv_1, forecast_year, target_year, target_quarter
-fit_lqr_modular <- function(df, tau = 0.6, target_name = "ngdp_rpch", R = 11, horizons = c(0.5, 1.0), pred_col = "prediction", tv_col = "tv_1") {
-  if(!requireNamespace("quantreg", quietly = TRUE)) stop("Package 'quantreg' required. Install with install.packages('quantreg').")
-  df <- ensure_types(df)
-  predictions <- init_output_df()
-  countries <- unique(df$country)
-  for(country in countries) {
-    for(h in horizons) {
-      data_by_country <- prepare_lqr_input(df, country, target_name, h)
-      if(nrow(data_by_country) < R + 1) next
-      for(i in seq(R, nrow(data_by_country) - 1)) { # -1 because we access i+1 for truth
-        win <- extract_window(data_by_country, i, R, pred_col = pred_col, tv_col = tv_col)
-        if(all(is.na(win$pred)) || all(is.na(win$tv1))) next
-        fits <- fit_lqr_models(win$pred, win$tv1, tau)
-        if(is.null(fits$fit_l) || is.null(fits$fit_u) || is.null(fits$fit_m)) next
-        last_pred <- tail(win$pred, 1)
-        preds <- predict_lqr(fits, last_pred)
-        # compute forecast target quarter (quarter arithmetic preserved)
-        fq <- data_by_country$target_quarter[i]
-        fy <- data_by_country$forecast_year[i]
-        # next target year/quarter (for readability use the same logic as earlier)
-        fq_h <- fq + 1
-        fy_h <- fy + (fq_h - 1) %/% 4
-        fq_h <- ((fq_h - 1) %% 4) + 1
-        new_row <- create_output_row(country, fy, fy_h, fq_h, h, target_name, tau, preds$lower, preds$upper, win$tv1_next)
-        predictions <- rbind(predictions, new_row)
+pava_correction <- function(x, increasing=TRUE, tolerance=1e-12){
+  na_idx <- is.na(x)
+  x_clean <- x[!na_idx]
+  n <- length(x_clean)
+  
+  if(n <= 1){
+    return(x)
+  }
+  
+  repeat{
+    violations_found <- FALSE
+    for(i in seq_len(n-1)){
+      #increasing order
+      if(increasing && (x_clean[i] - x_clean[i+1] > tolerance)){
+        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
+        violations_found <- TRUE
+      }  
+      #decreasing order 
+      if(!increasing && (x_clean[i+1] - x_clean[i] > tolerance)){
+        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
+        violations_found <- TRUE
       }
+      
+    }
+    if(violations_found == FALSE){
+      break
     }
   }
-  predictions <- ensure_types(predictions)
-  predictions
+  x_out <- x
+  x_out[!na_idx] <- x_clean
+  
+  return(x_out)
 }
-
-# ---------------------------
-# 8. Small convenience: batch WIS per group
-# ---------------------------
-compute_WIS_by_group <- function(pred_df, taus_to_use = c(0.5, 0.8)) {
-  if(!requireNamespace("dplyr", quietly = TRUE) || !requireNamespace("tidyr", quietly = TRUE)) {
-    stop("Packages 'dplyr' and 'tidyr' required.")
-  }
-  library(dplyr); library(tidyr)
-  pred_df <- ensure_types(pred_df)
-  # compute IS column if missing
-  if(!"IS" %in% names(pred_df)) {
-    pred_df$IS <- interval_score(pred_df$truth_value, pred_df$lower_bound, pred_df$upper_bound, pred_df$tau)
-  }
-  wide <- pred_df %>%
-    filter(tau %in% taus_to_use) %>%
-    pivot_wider(names_from = tau, values_from = IS, names_prefix = "IS_tau_") 
-  # gather IS columns and taus
-  is_cols <- grep("^IS_tau_", names(wide), value = TRUE)
-  tau_vals <- as.numeric(gsub("IS_tau_", "", is_cols))
-  wide$WIS <- apply(wide[is_cols], 1, function(ISrow) weighted_interval_score_multi(as.numeric(ISrow), tau_vals))
-  wide
-}
-
 # End of utility_functions.R
