@@ -127,28 +127,32 @@ pred_weo <- pred_weo %>%
   }) %>% ungroup()
 
 #truth value within predicted interval?
-pred_weo$covered <- pred_weo$truth_value >= pred_weo$lower_bound & pred_weo$truth_value <= pred_weo$upper_bound
+pred_weo <- is_covered(pred_weo)
 
-#input for calculation of WIS for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cumulated over all g7 countries
-lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
-                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
-upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
-                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
-truth_value <- cbind(pred_weo %>% filter(tau==0.5, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
-                     pred_weo %>% filter(tau==0.8, target=="gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+pred_weo %>% 
+  filter(target=="cpi", forecast_year>=2013, horizon==0.5) %>% 
+  summarise_coverage_of_df()
 
-#mean Interval scores for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cummulated over all g7 countries
-mean(interval_score(truth_value[,1], lower_bound[,1], upper_bound[,1], 0.5), na.rm=TRUE)
-mean(interval_score(truth_value[,2], lower_bound[,2], upper_bound[,2], 0.8), na.rm=TRUE)
+#interval scores
+pred_weo <- calc_IS_of_df(pred_weo)
 
-#mean WIS 
-mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
+pred_weo %>% 
+  filter(target=="cpi", forecast_year>=2013, horizon==0.5) %>% 
+  summarise_IS_of_df()
 
-mean(calc_WIS_of_df(pred_weo %>% filter(target=="gdp", forecast_year>=2013, horizon==0.5)),na.rm=TRUE)
+
+pred_weo %>% 
+  filter(target=="cpi", forecast_year>=2013, horizon==0.5) %>%
+  calc_WIS_of_df() %>%
+  as.numeric() %>%
+  mean(na.rm=TRUE)
+
+
 #check calibration by calculating coverage for 80% prediction intervals, 
-#forecast year 2013 and above, cummulated over all g7 countries
+#forecast year 2013 and above, cumulated over all g7 countries
 #TODO Mincer Zarnowitz regression for better evaluation of calibration
 mean(pred_weo %>% filter(tau == 0.5, forecast_year >= 2013, target == "gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
 mean(pred_weo %>% filter(tau == 0.8, forecast_year >= 2013, target == "gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)

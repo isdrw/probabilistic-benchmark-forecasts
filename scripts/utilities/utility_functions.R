@@ -54,6 +54,38 @@ interval_score <- function(truth_value, lower_bound, upper_bound, tau){
   return(IS)
 }
 
+
+#'functions calculates interval scores of given prediction dataframe
+#'@description The function takes in a prediction dataframe with columns 
+#'truth_value, lower_bound, upper_bound and tau (long format) and adds a column IS 
+#'for the interval score of each row
+#'
+#'@note df must contain aforementioned columns 
+#'
+#'@param df prediction dataframe 
+calc_IS_of_df <- function(df){
+  df %>%
+    group_by(tau) %>%
+    mutate(
+      IS = interval_score(truth_value, lower_bound, upper_bound, tau[1])
+    ) %>%
+    ungroup()
+}
+
+
+#'function calculates mean interval scores for all taus
+#'
+#'@note dataframe must contain column IS --> function calc_IS_of_df
+#'@param df prediction dataframe
+summarise_IS_of_df <- function(df){
+  df %>% 
+    group_by(tau) %>%
+    summarise(
+      mean_IS = mean(IS, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
 #'calculate Weighted Interval Score
 #'@description
 #'Function calculates weighted Interval Score based on given truth values lower
@@ -141,6 +173,24 @@ calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
   )
   
   return(WIS)
+}
+
+
+is_covered <- function(df){
+  df %>% 
+    mutate(
+      covered = truth_value >= lower_bound &
+        truth_value <= upper_bound
+    )
+}
+
+summarise_coverage_of_df <- function(df){
+  df %>% 
+    group_by(tau) %>%
+    summarise(
+      coverage = mean(covered, na.rm = TRUE),
+      .groups = "drop"
+    )
 }
 
 # ===========================
