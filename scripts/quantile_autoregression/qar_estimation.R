@@ -38,7 +38,7 @@ fit_qar_on_oecd <- function(df, country, tau, target, nlag=1, R=44, n_ahead=4){
     arrange(forecast_year, forecast_quarter)
   
   for(i in seq(R,nrow(data_by_country))){
-    data <- data_by_country[(i-R+1):i,][[target]]
+    data <- data_by_country[(i-R+1):i,][[paste0("tv_",target)]]
     
     #start and end date of rolling window 
     end_year <- as.numeric(data_by_country[i,"forecast_year"])
@@ -99,7 +99,7 @@ fit_qar_on_oecd <- function(df, country, tau, target, nlag=1, R=44, n_ahead=4){
     # truth values
     truth_values <- sapply(i + h_steps, function(idx) {
       if (idx <= nrow(data_by_country)){
-        data_by_country[[target]][idx] 
+        data_by_country[[paste0("tv_",target)]][idx] 
       }else{
         NA
       }   
@@ -142,7 +142,7 @@ fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
     arrange(forecast_year, forecast_quarter)
   
   for(i in seq(R,nrow(data_by_country))){
-    data <- data_by_country[(i-R+1):i,][[target]]
+    data <- data_by_country[(i-R+1):i,][[paste0("tv_",target)]]
     
     #start and end date of rolling window 
     end_year <- as.numeric(data_by_country[i,"forecast_year"])
@@ -198,7 +198,7 @@ fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
     
     # truth values
     truth_value <- if (i+1 <= nrow(data_by_country)){
-      data_by_country[[target]][i+1] 
+      data_by_country[[paste0("tv_",target)]][i+1] 
     }else{
       NA
     } 
@@ -232,11 +232,11 @@ fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
 grid <- crossing(
   country = unique(df_oecd$country),
   tau = seq(0.1, 0.9, 0.1),
-  target = c("tv_gdp", "tv_cpi")
+  target = c("gdp", "cpi")
 )
 
 #predict intervals for all combinations 
-pred <- grid %>% 
+pred_oecd <- grid %>% 
   mutate(
     results = pmap(
       list(country, tau, target),
@@ -248,34 +248,36 @@ pred <- grid %>%
 
 
 #truth value within predicted interval?
-pred$covered <- pred$truth_value >= pred$lower_bound & pred$truth_value <= pred$upper_bound
+pred_oecd <- is_covered(pred_oecd)
 
-#input for calculation of WIS for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cumulated over all g7 countries
-lower_bound <- cbind(pred %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
-                     pred %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
-upper_bound <- cbind(pred %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
-                     pred %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
-truth_value <- cbind(pred %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
-                     pred %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
+#interval scores
+pred_oecd <- calc_IS_of_df(pred_oecd)
 
-#mean Interval scores for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cummulated over all g7 countries
-mean(interval_score(truth_value[,1], lower_bound[,1], upper_bound[,1], 0.5), na.rm=TRUE)
-mean(interval_score(truth_value[,2], lower_bound[,2], upper_bound[,2], 0.8), na.rm=TRUE)
-
-#mean WIS 
-mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
-
-#check calibration by calculating coverage for 80% prediction intervals, 
-#forecast year 2013 and above, cummulated over all g7 countries
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
 #TODO Mincer Zarnowitz regression for better evaluation of calibration
-mean(pred %>% filter(tau == 0.5, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
-mean(pred %>% filter(tau == 0.8, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+
+#filter prediction dataframe for specific horizon and period
+pred_oecd_filtered <- pred_oecd %>% 
+  filter(forecast_year<2013, horizon==0.5)
+
+#coverage summary
+pred_oecd_filtered %>% 
+  summarise_coverage_of_df()
+
+#Interval score summary
+pred_oecd_filtered %>% 
+  summarise_IS_of_df()
+
+#Weighted interval score summary for 50% and 80% intervals
+pred_oecd_filtered %>% 
+  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
+  as.numeric() %>%
+  mean(na.rm=TRUE)
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), row.names = FALSE)
 
 
 #=================
@@ -286,7 +288,7 @@ write.csv(pred, paste0("results/qar_estimation/qar_prediction_", timestamp, ".cs
 grid_weo <- crossing(
   country = unique(df_weo_g7$country),
   tau = seq(0.1, 0.9, 0.1),
-  target = c("tv_gdp", "tv_cpi"),
+  target = c("gdp", "cpi"),
   horizon = c(0.5, 1.0)
 )
 
@@ -303,30 +305,32 @@ pred_weo <- grid_weo %>%
 
 
 #truth value within predicted interval?
-pred_weo$covered <- pred_weo$truth_value >= pred_weo$lower_bound & pred_weo$truth_value <= pred_weo$upper_bound
+pred_weo <- is_covered(pred_weo)
 
-#input for calculation of WIS for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cummulated over all g7 countries
-lower_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(lower_bound))
-upper_bound <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(upper_bound))
-truth_value <- cbind(pred_weo %>% filter(tau==0.5, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value),
-                     pred_weo %>% filter(tau==0.8, target=="tv_gdp", forecast_year>=2013, horizon==0.5) %>% pull(truth_value))
+#interval scores
+pred_weo <- calc_IS_of_df(pred_weo)
 
-#mean Interval scores for 50% and 80% prediction intervals
-#forecast years 2013 and above and the target gdp cummulated over all g7 countries
-mean(interval_score(truth_value[,1], lower_bound[,1], upper_bound[,1], 0.5), na.rm=TRUE)
-mean(interval_score(truth_value[,2], lower_bound[,2], upper_bound[,2], 0.8), na.rm=TRUE)
-
-#mean WIS 
-mean(weighted_interval_score(truth_value, lower_bound, upper_bound, c(0.5, 0.8)), na.rm=TRUE)
-
-#check calibration by calculating coverage for 80% prediction intervals, 
-#forecast year 2013 and above, cummulated over all g7 countries
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
 #TODO Mincer Zarnowitz regression for better evaluation of calibration
-mean(pred_weo %>% filter(tau == 0.5, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
-mean(pred_weo %>% filter(tau == 0.8, forecast_year >= 2013, target == "tv_gdp", horizon == 0.5) %>% pull(covered),na.rm = TRUE)
+
+#filter prediction dataframe for specific horizon and period
+pred_weo_filtered <- pred_weo %>% 
+  filter(forecast_year<2013, horizon==0.5)
+
+#coverage summary
+pred_weo_filtered %>% 
+  summarise_coverage_of_df()
+
+#Interval score summary
+pred_weo_filtered %>% 
+  summarise_IS_of_df()
+
+#Weighted interval score summary for 50% and 80% intervals
+pred_weo_filtered %>% 
+  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
+  as.numeric() %>%
+  mean(na.rm=TRUE)
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

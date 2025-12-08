@@ -26,8 +26,6 @@ fit_rw <- function(df, country, target, n_ahead = 4){
   out_list <- list()
   index <- 1
   
-  
-
   #time series data for each country and target
   data_by_country <- df %>% 
     filter(country == !!country) %>%
@@ -48,8 +46,8 @@ fit_rw <- function(df, country, target, n_ahead = 4){
     }
     
     #start/end date of observations 
-    end_year <- data_by_country[i-1,"forecast_year"]
-    end_quarter <- data_by_country[i-1,"forecast_quarter"]
+    end_year <- data_by_country[i,"forecast_year"]
+    end_quarter <- data_by_country[i,"forecast_quarter"]
     
     #random walk prediction (last observation)
     pred_rw <- rep(last_value, n_ahead)
@@ -65,6 +63,7 @@ fit_rw <- function(df, country, target, n_ahead = 4){
     out_list[[index]] <- new_pred_row(
       country = rep(country,n_ahead),
       forecast_year = rep(end_year,n_ahead),
+      forecast_quarter = rep(end_quarter,n_ahead),
       target_year = ty,
       target_quarter = tq,
       horizon = horizons,
@@ -89,7 +88,7 @@ grid <- crossing(
   target = c("tv_gdp", "tv_cpi")
 )
 
-#fit ARIMA(1,0,0) on quarterly OECD data with rolling window
+#fit random walk on quarterly OECD data with rolling window
 pred_rw <- grid %>% 
   mutate(
     results = pmap(

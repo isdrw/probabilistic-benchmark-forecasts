@@ -79,7 +79,7 @@ calc_IS_of_df <- function(df){
 #'@param df prediction dataframe
 summarise_IS_of_df <- function(df){
   df %>% 
-    group_by(tau) %>%
+    group_by(target, tau) %>%
     summarise(
       mean_IS = mean(IS, na.rm = TRUE),
       .groups = "drop"
@@ -186,7 +186,7 @@ is_covered <- function(df){
 
 summarise_coverage_of_df <- function(df){
   df %>% 
-    group_by(tau) %>%
+    group_by(target, tau) %>%
     summarise(
       coverage = mean(covered, na.rm = TRUE),
       .groups = "drop"
@@ -240,7 +240,7 @@ init_output_df <- function(interval=TRUE) {
 #'
 #'@return new filled row for output dataframe 
 new_pred_row <- function(country, forecast_year, target_year, target, target_quarter=NA, 
-                         horizon=NA, tau=NA, lower_bound=NA, 
+                         forecast_quarter = NA, horizon=NA, tau=NA, lower_bound=NA, 
                          upper_bound=NA, truth_value=NA, interval=TRUE, prediction=NA) {
   
   new_row <- data.frame()
@@ -248,6 +248,7 @@ new_pred_row <- function(country, forecast_year, target_year, target, target_qua
     new_row <- data.frame(
       country = country,
       forecast_year = forecast_year,
+      forecast_quarter = forecast_quarter,
       target_year = target_year,
       target_quarter = target_quarter,
       horizon = horizon,
@@ -263,6 +264,7 @@ new_pred_row <- function(country, forecast_year, target_year, target, target_qua
     new_row <- data.frame(
       country = country,
       forecast_year = forecast_year,
+      forecast_quarter = forecast_quarter,
       target_year = target_year,
       target_quarter = target_quarter,
       horizon = horizon,
@@ -542,4 +544,26 @@ pava_correction <- function(x, increasing=TRUE, tolerance=1e-12){
   
   return(x_out)
 }
-# End of utility_functions.R
+
+
+#'function applies PAVA algorithm on interval bounds of prediction dataframe
+#'
+#'@note prediction dataframe must contain columns country, target, forecast_year, 
+#'tau, lower_bound, upper_bound, prediction
+#'
+#'@param df prediction dataframe
+pava_correct_df <- function(df){
+  df %>% 
+    group_by(country, target, forecast_year, tau) %>%
+    group_modify(~{
+      #pava corrections for interval widths over all horizons
+      interval_widths <- .x$prediction - .x$lower_bound
+      interval_widths <- pava_correction(interval_widths)
+      
+      #update bounds
+      .x$lower_bound <- .x$prediction - interval_widths
+      .x$upper_bound <- .x$prediction + interval_widths
+      
+      .x
+    }) %>% ungroup()
+}

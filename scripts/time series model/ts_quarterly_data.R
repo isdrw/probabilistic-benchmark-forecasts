@@ -31,7 +31,7 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     filter(country == !!country) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country))){
+  for(i in seq(R,(nrow(data_by_country)-1))){
     data <- data_by_country[(i-R+1):i,][[target]]
     tv_end <- min(i + n_ahead, nrow(data_by_country))
     truth_values <- data_by_country[(i+1):tv_end, ][[target]]
@@ -42,9 +42,9 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     
     #start/end date of observations 
     start_year <- data_by_country[i-R+1,"forecast_year"]
-    end_year <- data_by_country[i,"forecast_year"]
+    end_year <- data_by_country[i+1,"forecast_year"]
     start_quarter <- data_by_country[i-R+1,"forecast_quarter"]
-    end_quarter <- data_by_country[i,"forecast_quarter"]
+    end_quarter <- data_by_country[i+1,"forecast_quarter"]
     start_date <- c(start_year,start_quarter)
     
     #skip if only NAs
@@ -99,6 +99,7 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     out_list[[index]] <- new_pred_row(
       country = rep(country,n_ahead),
       forecast_year = rep(end_year,n_ahead),
+      forecast_quarter = rep(end_quarter,n_ahead),
       target_year = ty,
       target_quarter = tq,
       horizon = horizons,
