@@ -81,7 +81,7 @@ summarise_IS_of_df <- function(df){
   df %>% 
     group_by(target, tau) %>%
     summarise(
-      mean_IS = mean(IS, na.rm = TRUE),
+      mean_IS = round(mean(IS, na.rm = TRUE),6),
       .groups = "drop"
     )
 }
@@ -176,6 +176,31 @@ calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
 }
 
 
+summarise_WIS_of_df <- function(df){
+  #WIS for 50% and 80% intervals per target
+  WIS_58 <- df %>%
+    group_by(target) %>%
+    group_modify(~{
+      wis_vec <- calc_WIS_of_df(.x, taus = c(0.5, 0.8))
+      tibble(WIS_58 = round(mean(as.numeric(wis_vec), na.rm = TRUE), 5))
+    })
+  
+  #WIS for 10% ... 90% intervals per target
+  WIS_all <- df %>%
+    group_by(target) %>%
+    group_modify(~{
+      wis_vec <- calc_WIS_of_df(.x, taus = seq(0.1, 0.9, 0.1))
+      tibble(WIS_all = round(mean(as.numeric(wis_vec), na.rm = TRUE), 5))
+    })
+  
+  #Combine into one tibble
+  result <- left_join(WIS_58, WIS_all, by = "target")
+  
+  return(result)
+}
+
+
+
 is_covered <- function(df){
   df %>% 
     mutate(
@@ -188,7 +213,7 @@ summarise_coverage_of_df <- function(df){
   df %>% 
     group_by(target, tau) %>%
     summarise(
-      coverage = mean(covered, na.rm = TRUE),
+      coverage = round(mean(covered, na.rm = TRUE),6),
       .groups = "drop"
     )
 }

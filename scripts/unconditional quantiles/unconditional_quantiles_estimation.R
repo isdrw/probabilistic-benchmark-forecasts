@@ -164,13 +164,13 @@ pred_quantiles_weo <- function(df, country, tau, target, h, nlag=1, R=11){
 #=================
 
 #create grid 
-grid <- crossing(
+grid_oecd <- crossing(
   country = unique(df_oecd$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi")
 )
 
-pred <- grid %>% 
+pred_oecd <- grid_oecd %>% 
   mutate(
     results = pmap(
       list(country, tau, target),
@@ -182,36 +182,34 @@ pred <- grid %>%
 
 
 #truth value within predicted interval?
-pred_weo <- is_covered(pred_weo)
+pred_oecd <- is_covered(pred_oecd)
 
 #interval scores
-pred_weo <- calc_IS_of_df(pred_weo)
+pred_oecd <- calc_IS_of_df(pred_oecd)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
 #TODO Mincer Zarnowitz regression for better evaluation of calibration
 
 #filter prediction dataframe for specific horizon and period
-pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<2013, horizon==0.5)
+pred_oecd_filtered <- pred_oecd %>% 
+  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
 #coverage summary
-pred_weo_filtered %>% 
+pred_oecd_filtered %>% 
   summarise_coverage_of_df()
 
 #Interval score summary
-pred_weo_filtered %>% 
+pred_oecd_filtered %>% 
   summarise_IS_of_df()
 
 
-pred_weo_filtered %>% 
-  calc_WIS_of_df(taus = seq(0.1, 0.9, 0.1)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+pred_oecd_filtered %>% 
+  summarise_WIS_of_df()
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred, paste0("results/unconditional_quantiles/unconditional_quantiles_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_oecd, paste0("results/unconditional_quantiles/unconditional_quantiles_oecd_", timestamp, ".csv"), row.names = FALSE)
 
 
 #=================
@@ -250,7 +248,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
 #coverage summary
 pred_weo_filtered %>% 
@@ -262,9 +260,7 @@ pred_weo_filtered %>%
 
 #Weighted interval score summary for 50% and 80% intervals
 pred_weo_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

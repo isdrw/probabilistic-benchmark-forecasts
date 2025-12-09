@@ -24,6 +24,9 @@ df_rw <- load_and_prepare_RW_data()
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
 df_ar1 <- load_and_prepare_ARIMA1_0_0_data()
 
+#load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
+df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data()
+
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
   gdp_err = tv_gdp - pred_gdp,
@@ -39,9 +42,14 @@ df_ar1 <- df_ar1 %>% mutate(
   gdp_err = tv_gdp - pred_gdp,
   cpi_err = tv_cpi - pred_cpi
 )
+#calc predictions errors
+df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
+  gdp_err = tv_gdp - pred_gdp,
+  cpi_err = tv_cpi - pred_cpi
+)
 
 #filter for G7 countries
-df_weo_g7 <- df %>% filter(g7 == 1)
+df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #function to calculate quantiles of fitted normal distribution and prediction interval
 fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
@@ -136,7 +144,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4)
+      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -154,7 +162,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -172,7 +180,25 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+#prediction on ARIMA(1,1,0) data (R=44 due to quarterly data)
+grid_arima1_1_0  <- crossing(
+  country = unique(df_arima1_1_0$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = c(0.5, 1.0)
+)
+
+pred_arima1_1_0 <- grid_arima1_1_0 %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -193,7 +219,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
 #coverage summary
 pred_weo_filtered %>% 
@@ -203,15 +229,13 @@ pred_weo_filtered %>%
 pred_weo_filtered %>% 
   summarise_IS_of_df()
 
-#Weighted interval score summary for 50% and 80% intervals
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
 pred_weo_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/gauss_quantile_prediction/gauss_prediction_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_weo, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_", timestamp, ".csv"), row.names = FALSE)
 
 
 #==============================================================================
@@ -229,7 +253,7 @@ pred_rw <- calc_IS_of_df(pred_rw)
 
 #filter prediction dataframe for specific horizon and period
 pred_rw_filtered <- pred_rw %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
 #coverage summary
 pred_rw_filtered %>% 
@@ -239,15 +263,13 @@ pred_rw_filtered %>%
 pred_rw_filtered %>% 
   summarise_IS_of_df()
 
-#Weighted interval score summary for 50% and 80% intervals
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
 pred_rw_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_rw, paste0("results/gauss_quantile_prediction/gauss_prediction_rw_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_rw, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_", timestamp, ".csv"), row.names = FALSE)
 
 
 #==============================================================================
@@ -265,7 +287,7 @@ pred_ar1 <- calc_IS_of_df(pred_ar1)
 
 #filter prediction dataframe for specific horizon and period
 pred_ar1_filtered <- pred_ar1 %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
 #coverage summary
 pred_ar1_filtered %>% 
@@ -275,17 +297,46 @@ pred_ar1_filtered %>%
 pred_ar1_filtered %>% 
   summarise_IS_of_df()
 
-#Weighted interval score summary for 50% and 80% intervals
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
 pred_ar1_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_ar1, paste0("results/gauss_quantile_prediction/gauss_prediction_ar1_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_ar1, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_ar1_", timestamp, ".csv"), row.names = FALSE)
 
+#==============================================================================
+##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
 
+#truth value within predicted interval?
+pred_arima1_1_0 <- is_covered(pred_arima1_1_0)
+
+#interval scores
+pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
+  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+
+#coverage summary
+pred_arima1_1_0_filtered %>% 
+  summarise_coverage_of_df()
+
+#Interval score summary
+pred_arima1_1_0_filtered %>% 
+  summarise_IS_of_df()
+
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+pred_arima1_1_0_filtered %>% 
+  summarise_WIS_of_df()
+
+#save prediction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_arima1_1_0, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_", timestamp, ".csv"), row.names = FALSE)
 
 
 

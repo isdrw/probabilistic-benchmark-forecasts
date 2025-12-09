@@ -305,3 +305,69 @@ load_and_prepare_ARIMA1_0_0_data <- function(){
   
   return(df)
 }
+
+
+# ===========================
+## preparation of ARIMA(1,1,0) data based on quarterly data 
+## of oecd_quarterly_data.csv
+## path "data/raw/IMF WEO/oecd_quarterly_data.csv"
+# ===========================
+
+#'load data from "point_predictions_arima1_1_0.csv"
+#'in folder data/processed
+#'
+load_ARIMA1_1_0_data <- function(){
+  #path
+  file_path <- r"(data/processed/point predictions/point_predictions_arima1_1_0.csv)"
+  
+  #read data file
+  df <- read.csv(file_path)
+  
+  return(df)
+}
+
+
+#'function transforms "point_predictions_arima1_1_0.csv" into wide format by target
+#'
+#'@param df dataframe of "point_predictions_arima1_1_0.csv"
+to_wide_format_ARIMA1_1_0 <- function(df){
+  df %>%
+    pivot_wider(
+      names_from = target,
+      values_from = c(prediction,truth_value)
+    )
+}
+
+
+#'renames columns of "point_predictions_arima1_1_0.csv"
+#'
+#'@note function to_wide_format_ARIMA1_1_0() must already be applied to df
+#'
+#'@param df dataframe of "point_predictions_arima1_1_0.csv"
+rename_cols_ARIMA1_1_0 <- function(df){
+  df %>%
+    rename(pred_gdp = prediction_tv_gdp,
+           pred_cpi = prediction_tv_cpi,
+           tv_gdp = truth_value_tv_gdp,
+           tv_cpi = truth_value_tv_cpi)
+}
+
+#'function prepares dataframe "point_predictions_arima1_0_0.csv"
+#'
+#'@param df dataframe of "point_predictions_arima1_0_0.csv"
+prepare_ARIMA1_1_0_df <- function(df){
+  df %>%
+    to_wide_format_ARIMA1_1_0() %>%
+    rename_cols_ARIMA1_1_0()
+}
+
+
+#'load and prepare "point_predictions_arima1_0_0.csv" data
+#'
+#'@note dplyr and arrow must be installed and loaded
+load_and_prepare_ARIMA1_1_0_data <- function(){
+  df <- load_ARIMA1_1_0_data() %>%
+    prepare_ARIMA1_1_0_df()
+  
+  return(df)
+}

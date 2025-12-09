@@ -259,7 +259,7 @@ pred_oecd <- calc_IS_of_df(pred_oecd)
 
 #filter prediction dataframe for specific horizon and period
 pred_oecd_filtered <- pred_oecd %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
 #coverage summary
 pred_oecd_filtered %>% 
@@ -269,11 +269,9 @@ pred_oecd_filtered %>%
 pred_oecd_filtered %>% 
   summarise_IS_of_df()
 
-#Weighted interval score summary for 50% and 80% intervals
+#Weighted interval score summary for 50% and 80% and 10%...90% intervals
 pred_oecd_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -316,7 +314,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<2013, horizon==0.5)
+  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
 #coverage summary
 pred_weo_filtered %>% 
@@ -326,11 +324,9 @@ pred_weo_filtered %>%
 pred_weo_filtered %>% 
   summarise_IS_of_df()
 
-#Weighted interval score summary for 50% and 80% intervals
+#Weighted interval score summary for 50% and 80% and 10%...90% intervals
 pred_weo_filtered %>% 
-  calc_WIS_of_df(taus = c(0.5, 0.8)) %>%
-  as.numeric() %>%
-  mean(na.rm=TRUE)
+  summarise_WIS_of_df()
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
