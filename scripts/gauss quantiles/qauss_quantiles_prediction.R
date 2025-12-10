@@ -340,7 +340,7 @@ write.csv(pred_arima1_1_0, paste0("results/gauss_quantiles_prediction/fitted_mea
 
 
 
-
+pred_arima1_1_0 <- read.csv("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_2025-12-09_15-02-44.csv")
 
 
 #====================================================================
