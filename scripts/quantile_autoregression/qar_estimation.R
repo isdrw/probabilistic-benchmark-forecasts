@@ -275,7 +275,8 @@ pred_oecd_filtered %>%
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), 
+          row.names = FALSE)
 
 
 #=================
@@ -330,6 +331,7 @@ pred_weo_filtered %>%
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/qar_estimation/qar_prediction_annual_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_weo, paste0("results/qar_estimation/qar_prediction_annual_", timestamp, ".csv"), 
+          row.names = FALSE)
 
 

@@ -235,7 +235,8 @@ pred_weo_filtered %>%
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_weo, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_", 
+                           timestamp, ".csv"), row.names = FALSE)
 
 
 #==============================================================================
@@ -269,7 +270,8 @@ pred_rw_filtered %>%
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_rw, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_rw, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_", 
+                          timestamp, ".csv"), row.names = FALSE)
 
 
 #==============================================================================
@@ -303,7 +305,8 @@ pred_ar1_filtered %>%
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_ar1, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_ar1_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_ar1, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_ar1_", 
+                           timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
@@ -336,11 +339,11 @@ pred_arima1_1_0_filtered %>%
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_arima1_1_0, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_arima1_1_0, paste0("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_", 
+                                  timestamp, ".csv"), row.names = FALSE)
 
 
 
-pred_arima1_1_0 <- read.csv("results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_2025-12-09_15-02-44.csv")
 
 
 #====================================================================
