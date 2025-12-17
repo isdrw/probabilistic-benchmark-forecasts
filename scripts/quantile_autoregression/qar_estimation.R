@@ -261,22 +261,21 @@ pred_oecd <- calc_IS_of_df(pred_oecd)
 pred_oecd_filtered <- pred_oecd %>% 
   filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_oecd_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_oecd_filtered %>% 
-  summarise_IS_of_df()
-
-#Weighted interval score summary for 50% and 80% and 10%...90% intervals
-pred_oecd_filtered %>% 
-  summarise_WIS_of_df()
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_oecd_eval <- pred_oecd_filtered %>% 
+    summarise_eval())
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), 
           row.names = FALSE)
+
+write.csv(pred_oecd_eval, paste0(
+  "results/qar_estimation/qar_prediction_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
 
 #=================
@@ -302,6 +301,7 @@ pred_weo <- grid_weo %>%
   pull(results) %>%
   bind_rows()
 
+#=============================
 
 #truth value within predicted interval?
 pred_weo <- is_covered(pred_weo)
@@ -317,21 +317,20 @@ pred_weo <- calc_IS_of_df(pred_weo)
 pred_weo_filtered <- pred_weo %>% 
   filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_weo_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_weo_filtered %>% 
-  summarise_IS_of_df()
-
-#Weighted interval score summary for 50% and 80% and 10%...90% intervals
-pred_weo_filtered %>% 
-  summarise_WIS_of_df()
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_weo_eval <- pred_weo_filtered %>% 
+    summarise_eval())
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/qar_estimation/qar_prediction_annual_", timestamp, ".csv"), 
-          row.names = FALSE)
+write.csv(pred_weo, paste0(
+  "results/qar_estimation/qar_prediction_annual_", 
+  timestamp, ".csv"), row.names = FALSE)
 
+write.csv(pred_weo_eval, paste0(
+  "results/qar_estimation/qar_prediction_annual_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 

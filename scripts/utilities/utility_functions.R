@@ -218,6 +218,27 @@ summarise_coverage_of_df <- function(df){
     )
 }
 
+
+summarise_eval <- function(df){
+  #coverage
+  coverage_df <- df %>% 
+    summarise_coverage_of_df()
+  
+  #interval scores
+  IS_df <- df %>% 
+    summarise_IS_of_df()
+  
+  #weighted interval scores
+  WIS_df <- df %>%
+    summarise_WIS_of_df()
+  
+  #combine results into one dataframe
+  summary_df <- coverage_df %>%
+    dplyr::left_join(IS_df, by = c("target", "tau")) %>% 
+    dplyr::left_join(WIS_df, by = c("target"))
+  
+  return(summary_df)
+}
 # ===========================
 ## prediction output functions
 # ===========================

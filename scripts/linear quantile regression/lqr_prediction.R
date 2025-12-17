@@ -211,22 +211,22 @@ pred_weo <- calc_IS_of_df(pred_weo)
 pred_weo_filtered <- pred_weo %>% 
   filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_weo_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_weo_filtered %>% 
-  summarise_IS_of_df()
-
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-pred_weo_filtered %>% 
-  summarise_WIS_of_df()
+(pred_weo_eval <- pred_weo_filtered %>% 
+    summarise_eval())
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_weo, paste0("results/linear_quantile_regression/ldr_prediction_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_weo, paste0(
+  "results/linear_quantile_regression/ldr_prediction_", 
+  timestamp, ".csv"), row.names = FALSE)
 
+write.csv(pred_weo_eval, paste0(
+  "results/linear_quantile_regression/ldr_prediction_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset Random Walk (quarterly, generated)
@@ -245,22 +245,22 @@ pred_rw <- calc_IS_of_df(pred_rw)
 pred_rw_filtered <- pred_rw %>% 
   filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_rw_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_rw_filtered %>% 
-  summarise_IS_of_df()
-
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-pred_rw_filtered %>% 
-  summarise_WIS_of_df()
+(pred_rw_eval <- pred_rw_filtered %>% 
+    summarise_eval())
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_rw, paste0("results/linear_quantile_regression/ldr_prediction_rw_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_rw, paste0(
+  "results/linear_quantile_regression/ldr_prediction_rw_", 
+  timestamp, ".csv"), row.names = FALSE)
 
+write.csv(pred_rw_eval, paste0(
+  "results/linear_quantile_regression/ldr_prediction_rw_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,0,0) (quarterly, generated)
@@ -279,21 +279,22 @@ pred_ar1 <- calc_IS_of_df(pred_ar1)
 pred_ar1_filtered <- pred_ar1 %>% 
   filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_ar1_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_ar1_filtered %>% 
-  summarise_IS_of_df()
-
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-pred_ar1_filtered %>% 
-  summarise_WIS_of_df()
+(pred_ar1_eval <- pred_ar1_filtered %>% 
+    summarise_eval())
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_ar1, paste0("results/linear_quantile_regression/ldr_prediction_ar1_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_ar1, paste0(
+  "results/linear_quantile_regression/ldr_prediction_ar1_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_ar1_eval, paste0(
+  "results/linear_quantile_regression/ldr_prediction_ar1_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
@@ -312,18 +313,19 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
   filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
 
+#summary of scores
 #coverage summary
-pred_arima1_1_0_filtered %>% 
-  summarise_coverage_of_df()
-
 #Interval score summary
-pred_arima1_1_0_filtered %>% 
-  summarise_IS_of_df()
-
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-pred_arima1_1_0_filtered %>% 
-  summarise_WIS_of_df()
+(pred_arima_1_1_0_eval <- pred_arima1_1_0_filtered %>% 
+    summarise_eval())
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_arima1_1_0, paste0("results/linear_quantile_regression/ldr_prediction_arima1_1_0_", timestamp, ".csv"), row.names = FALSE)
+write.csv(pred_arima1_1_0, paste0(
+  "results/linear_quantile_regression/ldr_prediction_arima1_1_0_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_arima1_1_0_eval, paste0(
+  "results/linear_quantile_regression/ldr_prediction_arima1_1_0_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
