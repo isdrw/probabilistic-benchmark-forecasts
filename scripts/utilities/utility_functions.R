@@ -239,6 +239,7 @@ summarise_eval <- function(df){
   
   return(summary_df)
 }
+
 # ===========================
 ## prediction output functions
 # ===========================
@@ -542,7 +543,7 @@ predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
 }
 
 # ---------------------------
-## PAVA correction function
+## data transformation/ correction
 # ---------------------------
 
 #'function applies pava-type algorithm on x
@@ -612,4 +613,86 @@ pava_correct_df <- function(df){
       
       .x
     }) %>% ungroup()
+}
+
+
+aggregate_to_annual <- function(df){
+  
+  #triangular weights
+  weights <- (1 - abs(4 - 1:7) / 4)
+  
+  df %>% 
+    #index for combination of target_year and target_quarter
+    dplyr::mutate(
+      tq_index = 4 * target_year + target_quarter
+    ) %>%
+    
+    dplyr::group_by(country, target, tau, horizon) %>%
+    
+    dplyr::group_modify(~{
+      
+      #target years of group
+      target_years <- sort(unique(.x$target_year))
+      
+      out_list = list()
+    
+      for(t in target_years){
+        #from Q2 in year t-1 to Q4 in year t
+        required_index <- (4 * (t-1) + 2):(4 * t + 4)
+        
+        #window for aggregation 
+        window <- .x %>% 
+          filter(tq_index %in% required_index) %>%
+          arrange(tq_index)
+        
+        #return empty tibble in case of insufficient amount of predicted quarters
+        if(nrow(window) != 7){
+          next
+        }
+        
+        #convert to log growth
+        log_lb <- 100 * log1p(window$lower_bound / 100)
+        log_ub <- 100 * log1p(window$upper_bound / 100)
+        log_tv <- 100 * log1p(window$truth_value / 100)
+        
+        #temporal aggregation of quarterly lower, upper bound and truth value
+        lb_annual <- sum(weights * log_lb)
+        ub_annual <- sum(weights * log_ub)
+        tv_annual <- sum(weights * log_tv)
+        
+        #check for existence of prediction
+        has_pred <- "prediction" %in% names(window) &&
+          !all(is.na(window$prediction))
+        
+        #temporal aggregation of prediction
+        if (has_pred) {
+          log_pred <- 100 * log1p(window$prediction / 100)
+          pred_annual <- sum(weights * log_pred)
+        } else {
+          pred_annual <- NA_real_
+        }
+        
+        out_list[[(as.character(t)]] <- tibble(
+          country = window$country[1],
+          forecast_year = window$forecast_year[7],
+          forecast_quarter = window$forecast_quarter[7],
+          target_year = t,
+          target_quarter = 4,
+          horizon = window$horizon[1],
+          target = window$target[1],
+          tau = window$tau[1],
+          lower_bound = lb_annual,
+          upper_bound = ub_annual,
+          truth_value = tv_annual,
+          prediction = pred_annual
+        )
+      }
+      
+      bind_rows(out_list)
+      
+    }) %>% 
+    
+    dplyr::ungroup() %>% 
+    dplyr::select(-tq_index)
+    
 }

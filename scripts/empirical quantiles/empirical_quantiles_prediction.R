@@ -78,8 +78,14 @@ fit_emp <- function(df, country, tau, target, h, R = 11){
     #forecast_year of i+1
     forecast_year_end <- data_by_country[i+1,][["forecast_year"]]
     
+    #forecast_quarter of i+1
+    forecast_quarter_end <- data_by_country[i+1,][["forecast_quarter"]]
+    
     #target_year of i+1
     target_year_end <- data_by_country[i+1,][["target_year"]]
+    
+    #target_quarter of i+1 (needed for temporal aggregation to annual data)
+    target_quarter_end <- (forecast_quarter_end - 1 + 4*h) %% 4 + 1
     
     #prediction of i+1
     last_pred <- data_by_country[i+1,][[paste0("pred_", target)]]
@@ -99,6 +105,7 @@ fit_emp <- function(df, country, tau, target, h, R = 11){
       country = country,
       forecast_year = forecast_year_end,
       target_year = target_year_end,
+      target_quarter = target_quarter_end,
       target = target,
       horizon = h,
       tau = tau,
