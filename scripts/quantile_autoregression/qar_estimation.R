@@ -246,6 +246,8 @@ pred_oecd <- grid %>%
   pull(results) %>%
   bind_rows()
 
+#aggregation to annual values
+pred_oecd <- pred_oecd %>% aggregate_to_annual()
 
 #truth value within predicted interval?
 pred_oecd <- is_covered(pred_oecd)
@@ -270,11 +272,11 @@ pred_oecd_filtered <- pred_oecd %>%
 
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_", timestamp, ".csv"), 
+write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_oecd_", timestamp, ".csv"), 
           row.names = FALSE)
 
 write.csv(pred_oecd_eval, paste0(
-  "results/qar_estimation/qar_prediction_eval_", 
+  "results/qar_estimation/qar_prediction_oecd_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 
@@ -327,10 +329,10 @@ pred_weo_filtered <- pred_weo %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/qar_estimation/qar_prediction_annual_", 
+  "results/qar_estimation/qar_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/qar_estimation/qar_prediction_annual_eval_", 
+  "results/qar_estimation/qar_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 

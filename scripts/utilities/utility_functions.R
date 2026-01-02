@@ -616,10 +616,10 @@ pava_correct_df <- function(df){
 }
 
 
-aggregate_to_annual <- function(df){
+aggregate_to_annual_pred <- function(df){
   
   #triangular weights
-  weights <- (1 - abs(4 - 1:7) / 4)
+  weights <- as.numeric((1 - abs(4 - 1:7) / 4))
   
   df %>% 
     #index for combination of target_year and target_quarter
@@ -634,7 +634,7 @@ aggregate_to_annual <- function(df){
       #target years of group
       target_years <- sort(unique(.x$target_year))
       
-      out_list = list()
+      out_list <- list()
     
       for(t in target_years){
         #from Q2 in year t-1 to Q4 in year t
@@ -651,28 +651,29 @@ aggregate_to_annual <- function(df){
         }
         
         #convert to log growth
-        log_lb <- 100 * log1p(window$lower_bound / 100)
-        log_ub <- 100 * log1p(window$upper_bound / 100)
-        log_tv <- 100 * log1p(window$truth_value / 100)
+        log_lb <- window$lower_bound
+        log_ub <- window$upper_bound
+        log_tv <- window$truth_value
         
         #temporal aggregation of quarterly lower, upper bound and truth value
-        lb_annual <- sum(weights * log_lb)
-        ub_annual <- sum(weights * log_ub)
-        tv_annual <- sum(weights * log_tv)
-        
+        lb_annual <- 100 * sum(weights * log_lb)
+        ub_annual <- 100 * sum(weights * log_ub)
+        tv_annual <- 100 * sum(weights * log_tv)
+
         #check for existence of prediction
         has_pred <- "prediction" %in% names(window) &&
           !all(is.na(window$prediction))
         
         #temporal aggregation of prediction
         if (has_pred) {
-          log_pred <- 100 * log1p(window$prediction / 100)
-          pred_annual <- sum(weights * log_pred)
+          log_pred <- window$prediction
+          #pred_annual <- sum(weights * log_pred)
+          pred_annual <- 100 * sum(weights * log_pred)
         } else {
           pred_annual <- NA_real_
         }
         
-        out_list[[(as.character(t)]] <- tibble(
+        out_list[[as.character(t)]] <- tibble(
           country = window$country[1],
           forecast_year = window$forecast_year[7],
           forecast_quarter = window$forecast_quarter[7],
@@ -692,7 +693,73 @@ aggregate_to_annual <- function(df){
       
     }) %>% 
     
-    dplyr::ungroup() %>% 
-    dplyr::select(-tq_index)
+    dplyr::ungroup() 
+}
+
+
+aggregate_to_annual_input <- function(df){
+  
+  #triangular weights
+  weights <- as.numeric((1 - abs(4 - 1:7) / 4))
+  
+  df %>% 
+    #index for combination of target_year and target_quarter
+    dplyr::mutate(
+      tq_index = 4 * target_year + target_quarter
+    ) %>%
     
+    dplyr::group_by(country, horizon) %>%
+    
+    dplyr::group_modify(~{
+      
+      #target years of group
+      target_years <- sort(unique(.x$target_year))
+      
+      out_list <- list()
+      
+      for(t in target_years){
+        #from Q2 in year t-1 to Q4 in year t
+        required_index <- (4 * (t-1) + 2):(4 * t + 4)
+        
+        #window for aggregation 
+        window <- .x %>% 
+          filter(tq_index %in% required_index) %>%
+          arrange(tq_index)
+        
+        #return empty tibble in case of insufficient amount of predicted quarters
+        if(nrow(window) != 7){
+          next
+        }
+        
+        #convert to log growth
+        log_pred_cpi <- log1p(window$pred_cpi / 100) 
+        log_pred_gdp <- log1p(window$pred_gdp / 100)
+        log_tv_cpi <- log1p(window$tv_cpi / 100)
+        log_tv_gdp <- log1p(window$tv_gdp / 100)
+        
+        #temporal aggregation of quarterly lower, upper bound and truth value
+        pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
+        pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
+        tv_cpi_annual <- 100 * sum(weights * log_tv_cpi)
+        tv_gdp_annual <- 100 * sum(weights * log_tv_gdp)
+        
+        out_list[[as.character(t)]] <- tibble(
+          country = window$country[1],
+          forecast_year = window$forecast_year[7],
+          forecast_quarter = window$forecast_quarter[7],
+          target_year = t,
+          target_quarter = window$target_quarter[7],
+          horizon = window$horizon[1],
+          pred_cpi = pred_cpi_annual,
+          pred_gdp = pred_gdp_annual,
+          tv_cpi = tv_cpi_annual,
+          tv_gdp = tv_gdp_annual
+        )
+      }
+      
+      bind_rows(out_list)
+      
+    }) %>% 
+    
+    dplyr::ungroup() 
 }

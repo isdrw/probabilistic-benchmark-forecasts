@@ -22,13 +22,13 @@ df_weo <- load_and_prepare_WEO_data()
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
-df_rw <- load_and_prepare_RW_data()
+df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
-df_ar1 <- load_and_prepare_ARIMA1_0_0_data()
+df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
-df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data()
+df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
 fit_lqr <- function(df, country, tau, target, h, R=11){
   
@@ -60,8 +60,14 @@ fit_lqr <- function(df, country, tau, target, h, R=11){
     #forecast year of point after rolling window for prediction
     forecast_year_end <- data_by_country[i+1,"forecast_year"]
     
+    #forecast quarter of point after rolling window for prediction
+    forecast_quarter_end <- as.numeric(data_by_country[i+1,"forecast_quarter"])
+    
     #target year of point after rolling window for prediction
     target_year_end <- data_by_country[i+1,"target_year"]
+    
+    #target quarter of point after rolling window for prediction
+    target_quarter_end <- (forecast_quarter_end + 4 * h - 1) %% 4 +1
     
     #skip if only NAs
     if(all(is.na(data_pred)) || is.null(data_pred) || 
@@ -102,6 +108,7 @@ fit_lqr <- function(df, country, tau, target, h, R=11){
       country = country,
       forecast_year = forecast_year_end,
       target_year = target_year_end,
+      target_quarter = target_quarter_end,
       target = target,
       horizon = h,
       tau = tau,
@@ -152,7 +159,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_lqr(df_rw, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_lqr(df_rw, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -170,7 +177,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_lqr(df_ar1, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_lqr(df_ar1, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -188,7 +195,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_lqr(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_lqr(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -221,11 +228,11 @@ pred_weo_filtered <- pred_weo %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/linear_quantile_regression/ldr_prediction_", 
+  "results/linear_quantile_regression/ldr_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/linear_quantile_regression/ldr_prediction_eval_", 
+  "results/linear_quantile_regression/ldr_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -317,7 +324,7 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 #coverage summary
 #Interval score summary
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-(pred_arima_1_1_0_eval <- pred_arima1_1_0_filtered %>% 
+(pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
     summarise_eval())
 
 #save prediction dataframe

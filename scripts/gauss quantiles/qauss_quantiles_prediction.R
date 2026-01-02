@@ -19,13 +19,13 @@ source("scripts/utilities/data_transformation_functions.R")
 df_weo <- load_and_prepare_WEO_data()
 
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
-df_rw <- load_and_prepare_RW_data()
+df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
-df_ar1 <- load_and_prepare_ARIMA1_0_0_data()
+df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
-df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data()
+df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
@@ -118,7 +118,7 @@ fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
       country = country,
       forecast_year = forecast_year_end,
       target_year = target_year_end,
-      target_quarter = target_quarer_end,
+      target_quarter = target_quarter_end,
       target = target,
       horizon = h,
       tau = tau,
@@ -151,7 +151,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
+      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
@@ -169,7 +169,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
+      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
@@ -187,7 +187,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
+      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
@@ -205,7 +205,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 44, fit_mean = TRUE)
+      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
@@ -238,11 +238,11 @@ pred_weo_filtered <- pred_weo %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_eval_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -272,11 +272,11 @@ pred_rw_filtered <- pred_rw %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_eval_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -306,11 +306,11 @@ pred_ar1_filtered <- pred_ar1 %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_ar1_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_ar1_eval_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -341,11 +341,11 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima1_1_0, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima1_1_0_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima1_1_0_eval, paste0(
-  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_arima1_1_0_eval_", 
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 

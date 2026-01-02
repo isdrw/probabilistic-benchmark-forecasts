@@ -12,7 +12,7 @@ source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
-df_oecd <- load_and_prepare_oecd_data()
+df_oecd <- load_and_prepare_oecd_data() 
 
 #load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
 df_weo <- load_and_prepare_WEO_data()
@@ -128,7 +128,7 @@ pred_quantiles_weo <- function(df, country, tau, target, h, nlag=1, R=11){
     preds_u <- preds$preds_u
     
     # target quarter and year vectors based on  forecasts
-    tq <- (end_quarter + 4 * (h - floor(h)) - 1) %% 4 + 1
+    tq <- (end_quarter + 4 * h - 1) %% 4 + 1
     ty <- as.numeric(data_by_country[i,"target_year"])
     
     # truth values
@@ -180,6 +180,8 @@ pred_oecd <- grid_oecd %>%
   pull(results) %>%
   bind_rows()
 
+#aggregation to annual values
+pred_oecd <- pred_oecd %>% aggregate_to_annual()
 
 #truth value within predicted interval?
 pred_oecd <- is_covered(pred_oecd)
@@ -261,9 +263,9 @@ pred_weo_filtered <- pred_weo %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/unconditional_quantiles/unconditional_quantiles_annual_", 
+  "results/unconditional_quantiles/unconditional_quantiles_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/unconditional_quantiles/unconditional_quantiles_annual_eval_", 
+  "results/unconditional_quantiles/unconditional_quantiles_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)

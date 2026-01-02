@@ -19,13 +19,13 @@ source("scripts/utilities/data_transformation_functions.R")
 df_weo <- load_and_prepare_WEO_data()
 
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
-df_rw <- load_and_prepare_RW_data()
+df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
-df_ar1 <- load_and_prepare_ARIMA1_0_0_data()
+df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
-df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data()
+df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
@@ -156,7 +156,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_emp(df_rw, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_emp(df_rw, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -174,7 +174,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_emp(df_ar1, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_emp(df_ar1, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -192,7 +192,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_emp(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 44)
+      ~ fit_emp(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -228,11 +228,11 @@ pred_weo_filtered <- pred_weo %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/empirical_quantiles_prediction/empirical_prediction_", 
+  "results/empirical_quantiles_prediction/empirical_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/empirical_quantiles_prediction/empirical_prediction_eval_", 
+  "results/empirical_quantiles_prediction/empirical_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
