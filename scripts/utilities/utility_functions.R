@@ -763,3 +763,39 @@ aggregate_to_annual_input <- function(df){
     
     dplyr::ungroup() 
 }
+
+
+# ---------------------------
+#  distribution/ sampling methods
+# ---------------------------
+
+#'function draws samples based on Inverse Gauss distribution 
+#'using Michael-Shucany-Haas Algorithm
+#'
+rinvgauss <- function(n, mu, lambda){
+  #draw from Chi-Squared 
+  v <- rchisq(n, df = 1)
+  
+  w <- mu * v
+  c <- mu / (2 * lambda)
+  
+  x1 <- mu + c * (w - sqrt(w * (4 * lambda + w)))
+  p1 <- mu / (mu + x1)
+  
+  #draw y from uniform distr (0,1)
+  y <- runif(n, 0, 1)
+  
+  x <- ifelse(y >= p1, mu * mu / x1, x1)
+  
+  return(x)
+}
+
+
+bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
+                beta0 = NULL, V0 = NULL, a0 = 0.01, b0 = 0.01, seed = NULL){
+  if(!is.null(seed)){
+    set.seed(seed)
+  }
+}
+
+
