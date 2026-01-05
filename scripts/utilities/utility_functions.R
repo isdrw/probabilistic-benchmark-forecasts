@@ -738,10 +738,10 @@ aggregate_to_annual_input <- function(df){
         log_tv_gdp <- log1p(window$tv_gdp / 100)
         
         #temporal aggregation of quarterly lower, upper bound and truth value
-        pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
-        pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
-        tv_cpi_annual <- 100 * sum(weights * log_tv_cpi)
-        tv_gdp_annual <- 100 * sum(weights * log_tv_gdp)
+        pred_cpi_annual <- sum(weights * log_pred_cpi)
+        pred_gdp_annual <- sum(weights * log_pred_gdp)
+        tv_cpi_annual <- sum(weights * log_tv_cpi)
+        tv_gdp_annual <- sum(weights * log_tv_gdp)
         
         out_list[[as.character(t)]] <- tibble(
           country = window$country[1],
@@ -769,9 +769,11 @@ aggregate_to_annual_input <- function(df){
 #  distribution/ sampling methods
 # ---------------------------
 
-#'function draws samples based on Inverse Gauss distribution 
+#'function draws n samples from an Inverse Gauss distribution 
 #'using Michael-Shucany-Haas Algorithm
-#'
+#'@param n sample size
+#'@param mu mean
+#'@param lambda shape of Inverse Gauss Distr.
 rinvgauss <- function(n, mu, lambda){
   #draw from Chi-Squared 
   v <- rchisq(n, df = 1)
@@ -791,11 +793,129 @@ rinvgauss <- function(n, mu, lambda){
 }
 
 
+#'function estimates quantiles through a bayesian quantile regression model
+#'
+#'@description The BQR Model uses a normal-inverse-Gaussian representation of the
+#'Asymmetric Laplace Distribution (Kotz et. al 1998 for mixture representation of ALD page 179) 
+#'The MCMC Gibbs sampling method is used to 
+#'iteratively sample the regression parameters. The mean of the sampled parameters is
+#'outputed after discarding burn in samples
+#'
+#'Method from Carriero et. al 2025
+#'
+#'@param y dependent regression variable (i.e. truth value)
+#'@param X regression matrix; may be dataframe (i.e. predicted value)
+#'@param tau quantile to be estimated
+#'@param n_iter number of samples to be calculated; default=6000
+#'@param burn burn-in rate of samples to be discarded before calculating sample mean; default=1000
+#'@param beta0 initial mean of regression vector beta; default=NULL --> set in function to 0
+#'@param B0 initial covariance matrix of regression vector beta; default=NULL --> set in 
+#'function to diagonal matrix of 1000 (high variance --> very little prior information) 
+#'The prior distribution of beta is ~N(beta0, V0)
+#'@param a0 
+#'
 bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
-                beta0 = NULL, V0 = NULL, a0 = 0.01, b0 = 0.01, seed = NULL){
+                beta0 = NULL, B0 = NULL, a0 = 0.01, b0 = 0.01, seed = NULL){
+  
+  #=====================================
+  #seed it specified
+  
   if(!is.null(seed)){
     set.seed(seed)
   }
+  
+  #=====================================
+  #prepare data
+  
+  #dependent variable y
+  y <- as.numeric(y)
+  
+  #Regressor matrix X
+  if(is.data.frame(X)){
+    X <- as.matrix(X)
+  }
+  if(!is.matrix(X)){
+    stop("X must be Matrix or dataframe")
+  }
+  
+  #intercept
+  X <- cbind(1, X)
+  
+  n <- length(y)
+  k <- ncol(X)
+  
+  if(ncol(X) != n){
+    stop("X must have same number of rows as y")
+  }
+  
+  #=====================================
+  #Priors with default values if not specified
+  
+  #prior mean of beta
+  if(is.null(beta0)){
+    beta0 <- rep(0, k)
+  }
+  
+  #prior covariance matrix of beta 
+  if(is.null(V0)){
+    B0 <- diag(1000, k)
+  }
+  
+  #=====================================
+  #Define constants of ALD mixture representation from Kotz et. al 1998
+  #constants based on Kozumi und Kobayashi 2011
+  
+  theta <- (1 - 2 * tau) / (tau * (1 - tau))
+  kappa2 <- 2 / (tau * (1 - tau))
+  
+  #=====================================
+  #initialize storage for sampled parameters
+  
+  #storage for sampled regression parameters
+  beta_storage <- matrix(NA_real_, n_iter, k)
+  
+  #storage for sampled scale parameter sigma
+  sigma_storage <- numeric(n_iter)
+  
+  #=====================================
+  #initial values for parameters beta and sigma
+  
+  beta <- rep(0, k)
+  sigma <- 1
+  z <- rep(1, n) #not needed for first draw with current sample order
+  
+  #=====================================
+  #Gibbs sampling loop
+  #Order:
+  #1. sample latent variable z from inverse Gauss distribution 
+  #--> function rinvgauss
+  #conditional on beta, sigma
+  #
+  #2. sample sigma from inverse Gamma distribution 
+  #
+  #3. sample beta from normal distribution   
+  for(i in 1:n_iter){
+    
+    #1. update z 
+    r <- as.numeric(y - X %*% beta)
+    r2 <- pmax(r * r, .Machine$double.eps)
+    
+    #parameters for Inverse Gauss distribution
+    delta2 <- r * r / (kappa2 * sigma)
+    gamma2 <- 2 / sigma + theta * theta / (kappa2 * sigma)
+    
+    mu_w <- sqrt(delta2 / pmax(gamma2, .Machine$double.eps))
+    lambda_w <- delta2
+    
+    #draw w from inverse Gauss distribution
+    w <- rinvgauss(n, mu = mu_w, lambda = lambda_w)
+    #take reciprocal value of w to get z (Jørgensen, B. (1982)) since z itself 
+    #has conditional distribution of general inverse Gaussian GIG(1/2, a, b) 
+    z <- 1/pmax(w, .Machine$double.eps)
+    
+    
+  }
+  
 }
 
 
