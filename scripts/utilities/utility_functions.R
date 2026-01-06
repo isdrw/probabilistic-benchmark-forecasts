@@ -815,7 +815,7 @@ rinvgauss <- function(n, mu, lambda){
 #'@param a0 
 #'
 bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
-                beta0 = NULL, B0 = NULL, a0 = 0.01, b0 = 0.01, seed = NULL){
+                beta0 = NULL, B0 = NULL, n0 = 0.01, s0 = 0.01, seed = NULL){
   
   #=====================================
   #seed it specified
@@ -838,13 +838,13 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
     stop("X must be Matrix or dataframe")
   }
   
-  #intercept
+  #add intercept
   X <- cbind(1, X)
   
   n <- length(y)
   k <- ncol(X)
   
-  if(ncol(X) != n){
+  if(nrow(X) != n){
     stop("X must have same number of rows as y")
   }
   
@@ -857,7 +857,7 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
   }
   
   #prior covariance matrix of beta 
-  if(is.null(V0)){
+  if(is.null(B0)){
     B0 <- diag(1000, k)
   }
   
@@ -896,12 +896,14 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
   #3. sample beta from normal distribution   
   for(i in 1:n_iter){
     
-    #1. update z 
+    #=====================================
+    #1. draw z from general inverse Gauss 
+    
     r <- as.numeric(y - X %*% beta)
     r2 <- pmax(r * r, .Machine$double.eps)
     
     #parameters for Inverse Gauss distribution
-    delta2 <- r * r / (kappa2 * sigma)
+    delta2 <- r2/ (kappa2 * sigma)
     gamma2 <- 2 / sigma + theta * theta / (kappa2 * sigma)
     
     mu_w <- sqrt(delta2 / pmax(gamma2, .Machine$double.eps))
@@ -910,12 +912,71 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
     #draw w from inverse Gauss distribution
     w <- rinvgauss(n, mu = mu_w, lambda = lambda_w)
     #take reciprocal value of w to get z (Jørgensen, B. (1982)) since z itself 
-    #has conditional distribution of general inverse Gaussian GIG(1/2, a, b) 
+    #has conditional distribution of general inverse Gaussian GIG(1/2, a, b)
+    #Z ~ GIG(1/2, a, b) <-> 1/Z ~ IG(sqrt(b/a), b)
+    #!note: Jørgensen 1982 and Kozumi & Kobayashi 2011 have different definitions for 
+    #the parameters of the GIG density function. a, b from Jørgensen 1982 is equivalent 
+    #delta^2 and gamma^2 respectively
     z <- 1/pmax(w, .Machine$double.eps)
     
+    #=====================================
+    #2. draw sigma from inverse Gamma 
     
+    res <- as.numeric(y - X %*% beta - theta * z)
+    res2 <- pmax(res * res, .Machine$double.eps)
+    
+    #parameters for inverse Gamma distr. --> Kozumi & Kobayashi 2011
+    n_sigma <- n0 + 3 * n
+    s_sigma <- s0 + 2 * sum(z) + sum(res2 / (kappa2 * z))
+    
+    #draw sigma from inverse Gamma by drawing from Gamma first and taking inverse
+    inv_sigma <- rgamma(1, n_sigma / 2, s_sigma / 2)
+    sigma <- 1 / pmax(inv_sigma, .Machine$double.eps)
+    
+    #=====================================
+    #3. draw beta from Normal distribution
+    
+    Z_inv <- diag(1 / pmax(z, 1e-12))
+    
+    #calculate posterior Cov-Matrix of beta
+    B0_inv <- solve(B0)
+    var_post_inv <- 1 / (kappa2 * sigma) * t(X) %*% Z_inv %*% X + B0_inv
+    var_post <- solve(var_post_inv)
+    
+    #calculate posterior mean of beta
+    mean_post <- var_post %*% 
+      (1 / (kappa2 * sigma) * t(X) %*% Z_inv %*% (y - theta * z) + B0_inv %*% beta0)
+    
+    #draw beta from multivariate Normal distribution (mvtnorm package required)
+    if(!requireNamespace("mvtnorm", quietly = TRUE)){
+      stop("mvtnorm package required for multivariate sampling of normal 
+           distr.install package: \n install.packages(\"mvtnorm\"")
+    }
+    beta <- as.numeric(mvtnorm::rmvnorm(1, mean = mean_post, sigma = var_post))
+    
+    #=====================================
+    #4. store sampled parameters
+    
+    beta_storage[i,] <- beta
+    sigma_storage[i] <- sigma
+    
+    #=====================================
+    #end of loop
   }
   
+  #=====================================
+  #return mean of sampled betas and sigma
+  
+  #discard burn-in
+  index <- (burn+1):n_iter
+  
+  out_list <- list(
+    beta_mean = colMeans(beta_storage[index, , drop = FALSE]),
+    sigma_mean = mean(sigma_storage[index]),
+    tau = tau
+  )
+  
+  return(out_list)
 }
 
 
