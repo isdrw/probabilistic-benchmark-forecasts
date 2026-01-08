@@ -18,6 +18,9 @@ source("scripts/utilities/data_transformation_functions.R")
 #load and prepare WEO data
 df_weo <- load_and_prepare_WEO_data()
 
+#filter for G7 countries
+df_weo_g7 <- df_weo %>% filter(g7 == 1)
+
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
 df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
 
@@ -27,32 +30,7 @@ df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
 df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
-#calc predictions errors
-df_weo <- df_weo %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
-)
-#calc predictions errors
-df_rw <- df_rw %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
-)
-#calc predictions errors
-df_ar1 <- df_ar1 %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
-)
-#calc predictions errors
-df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
-)
-
-#filter for G7 countries
-df_weo_g7 <- df_weo %>% filter(g7 == 1)
-
-#function to calculate quantiles of fitted normal distribution and prediction interval
-fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
+fit_lqr_lag <- function(df, country, tau, target, h, R=11){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -61,57 +39,79 @@ fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
   out_list <- list()
   index <- 1
   
-  #filter data by country and horizon and arrange by year and quarter (in case of unsorted data)
   data_by_country <- df %>% 
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  #loop over each target year
-  for(i in R:(nrow(data_by_country)-1)){
+  for(i in seq(R+1,nrow(data_by_country)-1)){
     
-    #set of abs prediction errors 
-    err_set <- data_by_country[(i-R+1):i,][[paste0(target, "_err")]]
+    #truth value vector y
+    y <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
     
-    #replacement of NA with median
-    err_set[is.na(err_set)] <-  median(err_set)
+    #regression matrix X
+    X <- tibble(
+      lagged_tv = data_by_country[(i-R):(i-1), ][[paste0("tv_", target)]],
+      pred = data_by_country[(i-R+1):i,][[paste0("pred_", target)]]
+    )
     
-    #forecast_year of i+1
-    forecast_year_end <- data_by_country[i+1,][["forecast_year"]]
+    reg_data <- bind_cols(y = y, X)
     
-    #forecast_quarter of i+1
-    forecast_quarter_end <- data_by_country[i+1,][["forecast_quarter"]]
+    #last prediction, truth value and last lagged value of point after rolling window
+    last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
+    truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
+    last_tv_lag <- as.numeric(data_by_country[i, ][[paste0("tv_", target)]])
     
-    #target_year of i+1
-    target_year_end <- data_by_country[i+1,][["target_year"]]
+    #start date of rolling window
+    forecast_year_start <- data_by_country[(i-R+1),"forecast_year"]
     
-    #target_quarter of i+1 (needed for temporal aggregation to annual data)
-    target_quarter_end <- (forecast_quarter_end - 1 + 4*h) %% 4 + 1
+    #forecast year of point after rolling window for prediction
+    forecast_year_end <- data_by_country[i+1,"forecast_year"]
     
-    #prediction of i+1
-    last_pred <- data_by_country[i+1,][[paste0("pred_", target)]]
+    #forecast quarter of point after rolling window for prediction
+    forecast_quarter_end <- as.numeric(data_by_country[i+1,"forecast_quarter"])
     
-    #truth value of i+1
-    truth_value <- data_by_country[i+1,][[paste0("tv_", target)]]
+    #target year of point after rolling window for prediction
+    target_year_end <- data_by_country[i+1,"target_year"]
     
-    #fit normal distibution
-    fit_n <- fit_normal_distribution(err_set)
+    #target quarter of point after rolling window for prediction
+    target_quarter_end <- (forecast_quarter_end + 4 * h - 1) %% 4 +1
     
-    #default mean
-    fitted_mean <- 0
-    
-    #if mean estimated as well
-    if(fit_mean){
-      fitted_mean <- fit_n$estimate["mean"]  
+    #skip if only NAs
+    if(all(is.na(y)) || is.null(y) || 
+       all(is.na(X$pred)) || is.null(X$pred)){
+      message("no valid data for ", country, " between ", 
+              forecast_year_start, " and ", forecast_year_end)
+      next
     }
     
-    #extract standard deviation
-    fitted_sd <- fit_n$estimate["sd"]
-    q_l <- qnorm((1-tau)/2,mean = fitted_mean,sd = fitted_sd)
-    q_u <- qnorm((1+tau)/2,mean = fitted_mean,sd = fitted_sd)
+    #fit lqr model 
+    fit_l <- tryCatch({
+      rq(formula = y ~ lagged_tv + pred, tau = (1-tau)/2, data = reg_data)
+    },error=function(e){
+      message("Fit failed for ", country, " (", 
+              forecast_year_start, "–", forecast_year_end, "): ", e$message)
+      NULL
+    })
     
-    #append to output dataframe
-    pred_l <- last_pred + q_l
-    pred_u <- last_pred + q_u
+    fit_u <- tryCatch({
+      rq(formula = y ~ lagged_tv + pred, tau = (1+tau)/2, data = reg_data)
+    },error=function(e){
+      message("Fit failed for ", country, " (", 
+              forecast_year_start, "–", forecast_year_end, "): ", e$message)
+      NULL
+    })
+    
+    if(is.null(fit_l)||is.null(fit_u)){
+      next
+    }
+    
+    #prediction of quantile based on last point forecast
+    new_data <- tibble(
+      lagged_tv = last_tv_lag,
+      pred = last_pred
+    )
+    pred_l <- as.numeric(predict(fit_l, newdata = new_data))
+    pred_u <- as.numeric(predict(fit_u, newdata = new_data))
     
     #new row
     out_list[[index]] <- new_pred_row(
@@ -151,7 +151,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = FALSE)
+      ~ fit_lqr_lag(df_weo_g7, ..1, ..2, ..3, ..4)
     )
   ) %>%
   pull(results) %>%
@@ -169,7 +169,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_lqr_lag(df_rw, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -187,7 +187,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_lqr_lag(df_ar1, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -205,7 +205,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_lqr_lag(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -235,14 +235,14 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
-#save prediction and evaluation dataframe
+#save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_eval_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -269,14 +269,14 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
-#save prediction and evaluation dataframe
+#save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_eval_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -303,14 +303,14 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
-#save prediction and evaluation dataframe
+#save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_ar1_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_ar1_eval_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -335,106 +335,14 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 #Interval score summary
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
-  summarise_eval())
+    summarise_eval())
 
-
-#save prediction and evaluation dataframe
+#save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima1_1_0, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima1_1_0_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_arima1_1_0_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima1_1_0_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima1_1_0_eval_", 
+  "results/linear_quantile_regression_lag/lqr_lag_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
-
-
-
-
-
-#====================================================================
-
-#find best rolling window on training dataset for g7 countries to calculate prediction interval
-#based on quantiles of fitted normal distribution
-#best R between 1 and 20 is R for which average weighted Interval score over all taus 
-#found insignificant differences between rolling windows of 11-16 --> 11 for better comparability 
-#to other methods
-
-best_R <- 5
-best_score <- Inf
-score_list <- list()
-for(R in seq(5,16,by=1)){
-  cat("current rolling window R", R,"\n")
-  #set of taus
-  taus <- seq(0.1,0.9,by=0.1)
-  #prediction list for each tau
-  predictions <- vector("list", length(taus))
-  names(predictions) <- paste0("tau_",taus)
-  
-  #loop over taus
-  for(i in seq_along(taus)){
-    #calculate prediction interval for tau 
-    predictions[[i]] <- calc_all_pred(
-      df = df_training,
-      countries = countries,
-      target_variables = target_variables,
-      h = c(0.5, 1.0),
-      tau = taus[i],
-      R = R,
-      fit_mean=FALSE
-    )
-    predictions[[i]] <- calc_interval_score(predictions[[i]])
-  }
-  #weighted prediction score
-  predictions_weighted <- calc_weighted_IS(predictions)
-  average_weighted_IS <- mean(predictions_weighted[[1]]$IS_weighted,na.rm=TRUE)
-  score_list <- append(score_list,average_weighted_IS)
-  #update if better score is achieved
-  if(average_weighted_IS <= best_score){
-    best_R <- R
-    best_score <- average_weighted_IS
-  }
-  cat("R =", R, "average WIS =", average_weighted_IS, "\n")
-}
-
-#found R=16
-best_R
-best_score
-
-#calculate prediction intervals for all taus (0.1,...,0.9)
-##Predictions were made on holdout dataset (>=2013-R)
-##For the first R predictions the rolling window was smaller than R
-##Predictions from 2013 onwards are with rolling window R
-taus <- seq(0.1,0.9,by=0.1)
-predictions <- vector("list", length(taus))
-names(predictions) <- paste0("tau_",taus)
-
-#loop over taus
-for(i in seq_along(taus)){
-  predictions[[i]] <- calc_all_pred(
-    df = df_holdout,
-    countries = countries,
-    target_variables = target_variables,
-    h = c(0.5, 1.0),
-    tau = taus[i],
-    R = 11,
-    fit_mean = TRUE
-  )
-  predictions[[i]] <- calc_interval_score(predictions[[i]])
-}
-
-predictions_weighted <- calc_weighted_IS(predictions)
-
-#save prediction
-for(i in seq_along(taus)){
-  tau <- taus[i]
-  
-  filename <- paste0("prediction_fitted_mean_g7_tau_",tau,".parquet")
-  folder <- "results/gauss_quantiles_prediction/fitted_mean"
-  path <- file.path(folder,filename)
-  write_parquet(predictions_weighted[[i]],path)
-}
-
-
-
-

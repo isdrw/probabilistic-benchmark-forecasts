@@ -806,16 +806,17 @@ rinvgauss <- function(n, mu, lambda){
 #'@param y dependent regression variable (i.e. truth value)
 #'@param X regression matrix; may be dataframe (i.e. predicted value)
 #'@param tau quantile to be estimated
-#'@param n_iter number of samples to be calculated; default=6000
-#'@param burn burn-in rate of samples to be discarded before calculating sample mean; default=1000
+#'@param n_iter number of samples to be calculated; default=3000
+#'@param burn burn-in rate of samples to be discarded before calculating sample mean; default=500
 #'@param beta0 initial mean of regression vector beta; default=NULL --> set in function to 0
 #'@param B0 initial covariance matrix of regression vector beta; default=NULL --> set in 
-#'function to diagonal matrix of 1000 (high variance --> very little prior information) 
-#'The prior distribution of beta is ~N(beta0, V0)
-#'@param a0 
+#'function to diagonal matrix of 500 (high variance --> very little prior information) 
+#'The prior distribution of beta is ~N(beta0, B0)
+#'@param n0 prior parameter of inverse Gamma distribution of sigma InvG(n0,s0)
+#'@param s0 prior parameter of inverse Gamma distribution of sigma InvG(n0,s0)
+#'@param seed
 #'
-bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
-                beta0 = NULL, B0 = NULL, n0 = 0.01, s0 = 0.01, seed = NULL){
+bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NULL, use_minesota = TRUE, lambda1 = 0.04, lambda2 = 0.25, n0 = 0.01, s0 = 0.01, seed = NULL){
   
   #=====================================
   #seed it specified
@@ -849,24 +850,49 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
   }
   
   #=====================================
-  #Priors with default values if not specified
+  #Minesota Prior or Prior with default values if not specified
+  #Minesota Prior parameters as specified in Carriero et. al 2025
   
-  #prior mean of beta
+  #prior mean of beta always 0
   if(is.null(beta0)){
     beta0 <- rep(0, k)
   }
   
-  #prior covariance matrix of beta 
-  if(is.null(B0)){
-    B0 <- diag(1000, k)
+  if(use_minesota){
+   
+   #variance of dependent variable and regressor
+   sy2 <- var(y)
+   #variance for intercept and lagged regressor coefficent are defined independently 
+   sx2 <- apply(X[, c(-1, -2), drop = FALSE], 2, var)
+   
+   prior_var <- numeric(k)
+   
+   #intercept variance uninformative
+   prior_var[1] <- 1000 * sy2
+   
+   #prior of regression coefficient (first coefficient lagged value)
+   prior_var[2] <- lambda1
+   
+   if(k > 2){
+     prior_var[3:k] <- lambda1 * lambda2 * (sy2 / sx2)
+   }
+   
+   #define prior Covariance matrix of beta
+   B0 <- diag(prior_var)
+   
+  }else{
+    #prior covariance matrix of beta 
+    if(is.null(B0)){
+      B0 <- diag(1000, k)
+    }  
   }
   
   #=====================================
   #Define constants of ALD mixture representation from Kotz et. al 1998
   #constants based on Kozumi und Kobayashi 2011
   
-  theta <- (1 - 2 * tau) / (tau * (1 - tau))
-  kappa2 <- 2 / (tau * (1 - tau))
+  theta <- (1 - 2 * p) / (p * (1 - p))
+  tau2 <- 2 / (p * (1 - p))
   
   #=====================================
   #initialize storage for sampled parameters
@@ -903,8 +929,8 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
     r2 <- pmax(r * r, .Machine$double.eps)
     
     #parameters for Inverse Gauss distribution
-    delta2 <- r2/ (kappa2 * sigma)
-    gamma2 <- 2 / sigma + theta * theta / (kappa2 * sigma)
+    delta2 <- r2/ (tau2 * sigma)
+    gamma2 <- 2 / sigma + theta * theta / (tau2 * sigma)
     
     mu_w <- sqrt(delta2 / pmax(gamma2, .Machine$double.eps))
     lambda_w <- delta2
@@ -927,7 +953,7 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
     
     #parameters for inverse Gamma distr. --> Kozumi & Kobayashi 2011
     n_sigma <- n0 + 3 * n
-    s_sigma <- s0 + 2 * sum(z) + sum(res2 / (kappa2 * z))
+    s_sigma <- s0 + 2 * sum(z) + sum(res2 / (tau2 * z))
     
     #draw sigma from inverse Gamma by drawing from Gamma first and taking inverse
     inv_sigma <- rgamma(1, n_sigma / 2, s_sigma / 2)
@@ -936,21 +962,21 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
     #=====================================
     #3. draw beta from Normal distribution
     
-    Z_inv <- diag(1 / pmax(z, 1e-12))
+    z_inv_vec <- 1 / pmax(z, 1e-12)
+    XZ <- X * z_inv_vec
     
     #calculate posterior Cov-Matrix of beta
     B0_inv <- solve(B0)
-    var_post_inv <- 1 / (kappa2 * sigma) * t(X) %*% Z_inv %*% X + B0_inv
+    var_post_inv <- 1 / (tau2 * sigma) * crossprod(X,XZ) + B0_inv
     var_post <- solve(var_post_inv)
     
     #calculate posterior mean of beta
     mean_post <- var_post %*% 
-      (1 / (kappa2 * sigma) * t(X) %*% Z_inv %*% (y - theta * z) + B0_inv %*% beta0)
+      (1 / (tau2 * sigma) * crossprod(X, (y - theta * z) * z_inv_vec) + B0_inv %*% beta0)
     
     #draw beta from multivariate Normal distribution (mvtnorm package required)
     if(!requireNamespace("mvtnorm", quietly = TRUE)){
-      stop("mvtnorm package required for multivariate sampling of normal 
-           distr.install package: \n install.packages(\"mvtnorm\"")
+      stop("mvtnorm package needed")
     }
     beta <- as.numeric(mvtnorm::rmvnorm(1, mean = mean_post, sigma = var_post))
     
@@ -973,10 +999,13 @@ bqr <- function(y, X, tau = 0.5, n_iter = 6000, burn = 1000,
   out_list <- list(
     beta_mean = colMeans(beta_storage[index, , drop = FALSE]),
     sigma_mean = mean(sigma_storage[index]),
-    tau = tau
+    p = p,
+    beta_draws = beta_storage[index,],
+    sigma_draws = sigma_storage[index]
   )
   
   return(out_list)
 }
 
 
+predict_bqr <- function(fit, )

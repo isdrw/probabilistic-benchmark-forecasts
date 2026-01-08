@@ -333,7 +333,7 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 #coverage summary
 #Interval score summary
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
-(pred_arima_1_1_0_eval <- pred_arima1_1_0_filtered %>% 
+(pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
     summarise_eval())
 
 #save prediction dataframe
