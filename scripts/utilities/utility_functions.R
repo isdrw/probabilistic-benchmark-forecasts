@@ -355,6 +355,127 @@ fit_normal_distribution <- function(x,mean = 0,sd = 1){
   return(fit_n)
 }
 
+#'function fits t distribution on vector x
+#'
+#'@param x numeric vector of observations
+#'@param mean numeric value of default mean (0) to be returned if fit fails
+#'@param sd numeric value of default standard deviation (1) to be returned if fit fails
+#'@param df numeric value of default degree of freedom (10 for moderate heavy tails)
+fit_t_distribution <- function(x,mean = 0, sd = 1, df = 10){
+  #remove NAs and infinite values
+  x_clean <- x[!is.na(x)&is.finite(x)]
+  
+  #check for singular value and/or sd == 0
+  if(length(x_clean)<3 || sd(x_clean)==0){
+    #return standard t distribution
+    return(list(mean = mean, sd = sd, df = df))
+  }
+  
+  #start list for optimizer 
+  start_vals <- list(
+    m = mean(x_clean),
+    s = sd(x_clean),
+    df = 10
+  )
+  
+  fit_t <- tryCatch(
+    MASS::fitdistr(x_clean, densfun = "t", start = start_vals),
+    error = function(e){
+      warning("fitdist failed to fit t distribution: ", conditionMessage(e))
+      NULL
+    }
+  )
+  
+  if(is.null(fit_t)){
+    return(list(mean = mean, sd = sd, df = df))
+  }
+  
+  return(list(
+      mean = fit_t$estimate["m"],
+      sd = fit_t$estimate["s"],
+      df = fit_t$estimate["df"]
+    )
+  )
+}
+
+
+#'function fits skewed t distribution on vector x
+#'
+#'@note Package fGarch required
+#'@param x numeric vector of observations
+#'@param mean numeric value of default location parameter (0) to be returned if fit fails
+#'@param sd numeric value of default scale parameter (1) to be returned if fit fails
+#'@param nu numeric value of default shape (10 df) parameter to be returned if fit fails
+#'@param xi numeric value of default skewness (1.5)
+fit_skewed_t_distribution <- function(x, mean = 0, sd = 1, nu = 10, xi = 1.5){
+  #remove NAs and infinite values
+  x_clean <- x[!is.na(x)&is.finite(x)]
+  
+  #check for singular value and/or sd == 0
+  if(length(x_clean) < 5 || sd(x_clean)==0){
+    #return default parameters
+    return(list(mean = mean, sd = sd, nu = nu, xi = xi))
+  }
+  
+  #Package fGarch required
+  fit_skewed_t <- tryCatch(
+    fGarch::sstdFit(x_clean),
+    error = function(e){
+      warning("fitdist failed to fit t distribution: ", conditionMessage(e))
+      NULL
+    }
+  )
+  
+  if(is.null(fit_skewed_t)){
+    return(list(mean = mean, sd = sd, nu = nu, xi = xi))
+  }
+  
+  return(list(
+    mean = fit_skewed_t$estimate["mean"],
+    sd = fit_skewed_t$estimate["sd"],
+    nu = fit_skewed_t$estimate["nu"],
+    xi = fit_skewed_t$estimate["xi"]
+  )
+  )
+}
+
+
+#'function fits Asymmetric Laplace distribution on vector x
+#'
+#'@param x numeric vector of observations
+fit_ald_distribution <- function(x){
+  #remove NAs and infinite values
+  x_clean <- x[!is.na(x)&is.finite(x)]
+  
+  #check for singular value and/or sd == 0
+  if(length(x_clean) < 3 || sd(x_clean)==0){
+    #return default parameters
+    return(list(mu = 0, sigma = 1, p = 0.5))
+  }
+  
+  fit <- tryCatch(
+    ald::mleALD(x_clean),
+    error = function(e){
+      warning("fitdist failed to fit ALD: ", conditionMessage(e))
+      NULL
+    }
+  )
+  
+  mu_hat <- fit$par[1]
+  sigma_hat <- fit$par[2]
+  p <- fit$par[3]
+  
+  #return estimated parameters
+  return(
+    list(
+      mu = mu_hat,
+      sigma = sigma_hat,
+      p = p
+    )
+  )
+}
+
+
 #'compute prediction interval for method unconditional quantiles (observation based)
 #'@description
 #'function computes prediction interval for given set of observations and a level tau by
@@ -696,6 +817,14 @@ aggregate_to_annual_pred <- function(df){
     dplyr::ungroup() 
 }
 
+#'function calculates value of check loss function from residual u and quantile level tau
+#'
+#'@param u residual (x - x_hat)
+#'@param tau quantile level 
+check_loss <- function(u, tau){
+  ifelse(u >= 0, tau * u, (1 - tau) * (-u))
+}
+
 
 aggregate_to_annual_input <- function(df){
   
@@ -1008,4 +1137,20 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
 }
 
 
-predict_bqr <- function(fit, )
+predict_bqr <- function(fit, x_star, tau){
+  
+  #parameters of ALD mixture representation
+  
+  #extract parameter draws from fit
+  beta_draws <- fit$beta_draws
+  sigma_draws <- fit$sigma_draws
+  
+  n <- ncol(beta_draws)
+  
+  #vector for calculated ys
+  y_hat <- numeric(n)
+  
+  for(i in 1:n){
+    #sample 
+  }
+}
