@@ -22,7 +22,7 @@ write.csv(gauss_eval_arima110, paste0(
 x <- rnorm(500, 0, 1)
 z <- rexp(500, 1)
 eps <- rnorm(500, 0, 1)
-p <- 0.8
+p <- 0.5
 theta <- (1 - 2 * p) / (p * (1 - p)) 
 tau2 <- 2 / (p * (1 - p))
 sigma <- 0.1
@@ -40,19 +40,16 @@ for(i in 100:499){
   last_x <- x[i+1]
   last_y <- y[i+1]
   
-  fit_l <- tryCatch({
-    bqr(y_r, x_r, p = 0.1, n_iter = 3000, burn = 500)
-  }, error=function(e){
-    message("Fit failed, message: ", e$message)
-  })
-  fit_u <- tryCatch({
-    bqr(y_r, x_r, p = 0.9, n_iter = 3000, burn = 500)
+  fit_m <- tryCatch({
+    bqr(y_r, x_r, p = 0.5, n_iter = 3000, burn = 500)
   }, error=function(e){
     message("Fit failed, message: ", e$message)
   })
   
-  pred_l <- fit_l$beta_mean[1] + fit_l$beta_mean[2] * last_x
-  pred_u <- fit_u$beta_mean[1] + fit_u$beta_mean[2] * last_x
+  sim_y <- predict_bqr(fit_m, cbind(1, last_x))
+  
+  pred_l <- quantile(sim_y, probs = 0.1, type = 7)
+  pred_u <- quantile(sim_y, probs = 0.9, type = 7)
   
   out_list[[index]] <- data.frame(
     pred_l = pred_l,
@@ -76,3 +73,5 @@ fit_aaa$estimate["m"]
 
 fit_aaa <- ald::mleALD(aaa)
 fit_aaa$par
+
+

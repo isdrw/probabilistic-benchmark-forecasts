@@ -737,85 +737,6 @@ pava_correct_df <- function(df){
 }
 
 
-aggregate_to_annual_pred <- function(df){
-  
-  #triangular weights
-  weights <- as.numeric((1 - abs(4 - 1:7) / 4))
-  
-  df %>% 
-    #index for combination of target_year and target_quarter
-    dplyr::mutate(
-      tq_index = 4 * target_year + target_quarter
-    ) %>%
-    
-    dplyr::group_by(country, target, tau, horizon) %>%
-    
-    dplyr::group_modify(~{
-      
-      #target years of group
-      target_years <- sort(unique(.x$target_year))
-      
-      out_list <- list()
-    
-      for(t in target_years){
-        #from Q2 in year t-1 to Q4 in year t
-        required_index <- (4 * (t-1) + 2):(4 * t + 4)
-        
-        #window for aggregation 
-        window <- .x %>% 
-          filter(tq_index %in% required_index) %>%
-          arrange(tq_index)
-        
-        #return empty tibble in case of insufficient amount of predicted quarters
-        if(nrow(window) != 7){
-          next
-        }
-        
-        #convert to log growth
-        log_lb <- window$lower_bound
-        log_ub <- window$upper_bound
-        log_tv <- window$truth_value
-        
-        #temporal aggregation of quarterly lower, upper bound and truth value
-        lb_annual <- 100 * sum(weights * log_lb)
-        ub_annual <- 100 * sum(weights * log_ub)
-        tv_annual <- 100 * sum(weights * log_tv)
-
-        #check for existence of prediction
-        has_pred <- "prediction" %in% names(window) &&
-          !all(is.na(window$prediction))
-        
-        #temporal aggregation of prediction
-        if (has_pred) {
-          log_pred <- window$prediction
-          #pred_annual <- sum(weights * log_pred)
-          pred_annual <- 100 * sum(weights * log_pred)
-        } else {
-          pred_annual <- NA_real_
-        }
-        
-        out_list[[as.character(t)]] <- tibble(
-          country = window$country[1],
-          forecast_year = window$forecast_year[7],
-          forecast_quarter = window$forecast_quarter[7],
-          target_year = t,
-          target_quarter = 4,
-          horizon = window$horizon[1],
-          target = window$target[1],
-          tau = window$tau[1],
-          lower_bound = lb_annual,
-          upper_bound = ub_annual,
-          truth_value = tv_annual,
-          prediction = pred_annual
-        )
-      }
-      
-      bind_rows(out_list)
-      
-    }) %>% 
-    
-    dplyr::ungroup() 
-}
 
 #'function calculates value of check loss function from residual u and quantile level tau
 #'
@@ -867,10 +788,10 @@ aggregate_to_annual_input <- function(df){
         log_tv_gdp <- log1p(window$tv_gdp / 100)
         
         #temporal aggregation of quarterly lower, upper bound and truth value
-        pred_cpi_annual <- sum(weights * log_pred_cpi)
-        pred_gdp_annual <- sum(weights * log_pred_gdp)
-        tv_cpi_annual <- sum(weights * log_tv_cpi)
-        tv_gdp_annual <- sum(weights * log_tv_gdp)
+        pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
+        pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
+        tv_cpi_annual <- 100 * sum(weights * log_tv_cpi)
+        tv_gdp_annual <- 100 * sum(weights * log_tv_gdp)
         
         out_list[[as.character(t)]] <- tibble(
           country = window$country[1],
@@ -1042,7 +963,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   #=====================================
   #Gibbs sampling loop
   #Order:
-  #1. sample latent variable z from inverse Gauss distribution 
+  #1. sample latent variable v from inverse Gauss distribution 
   #--> function rinvgauss
   #conditional on beta, sigma
   #
@@ -1052,7 +973,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   for(i in 1:n_iter){
     
     #=====================================
-    #1. draw z from general inverse Gauss 
+    #1. draw v from general inverse Gauss 
     
     r <- as.numeric(y - X %*% beta)
     r2 <- pmax(r * r, .Machine$double.eps)
@@ -1068,21 +989,20 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
     w <- rinvgauss(n, mu = mu_w, lambda = lambda_w)
     #take reciprocal value of w to get z (Jørgensen, B. (1982)) since z itself 
     #has conditional distribution of general inverse Gaussian GIG(1/2, a, b)
-    #Z ~ GIG(1/2, a, b) <-> 1/Z ~ IG(sqrt(b/a), b)
+    #V ~ GIG(1/2, a, b) <-> 1/Z ~ IG(sqrt(b/a), b)
     #!note: Jørgensen 1982 and Kozumi & Kobayashi 2011 have different definitions for 
     #the parameters of the GIG density function. a, b from Jørgensen 1982 is equivalent 
     #delta^2 and gamma^2 respectively
-    z <- 1/pmax(w, .Machine$double.eps)
-    
+    v <- 1/pmax(w, .Machine$double.eps)
     #=====================================
     #2. draw sigma from inverse Gamma 
     
-    res <- as.numeric(y - X %*% beta - theta * z)
+    res <- as.numeric(y - X %*% beta - theta * v)
     res2 <- pmax(res * res, .Machine$double.eps)
     
     #parameters for inverse Gamma distr. --> Kozumi & Kobayashi 2011
     n_sigma <- n0 + 3 * n
-    s_sigma <- s0 + 2 * sum(z) + sum(res2 / (tau2 * z))
+    s_sigma <- s0 + 2 * sum(v) + sum(res2 / (tau2 * v))
     
     #draw sigma from inverse Gamma by drawing from Gamma first and taking inverse
     inv_sigma <- rgamma(1, n_sigma / 2, s_sigma / 2)
@@ -1091,17 +1011,17 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
     #=====================================
     #3. draw beta from Normal distribution
     
-    z_inv_vec <- 1 / pmax(z, 1e-12)
-    XZ <- X * z_inv_vec
+    v_inv_vec <- 1 / pmax(v, 1e-12)
+    XV <- X * v_inv_vec
     
     #calculate posterior Cov-Matrix of beta
     B0_inv <- solve(B0)
-    var_post_inv <- 1 / (tau2 * sigma) * crossprod(X,XZ) + B0_inv
+    var_post_inv <- 1 / (tau2 * sigma) * crossprod(X,XV) + B0_inv
     var_post <- solve(var_post_inv)
     
     #calculate posterior mean of beta
     mean_post <- var_post %*% 
-      (1 / (tau2 * sigma) * crossprod(X, (y - theta * z) * z_inv_vec) + B0_inv %*% beta0)
+      (1 / (tau2 * sigma) * crossprod(X, (y - theta * v) * v_inv_vec) + B0_inv %*% beta0)
     
     #draw beta from multivariate Normal distribution (mvtnorm package required)
     if(!requireNamespace("mvtnorm", quietly = TRUE)){
@@ -1136,21 +1056,40 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   return(out_list)
 }
 
-
-predict_bqr <- function(fit, x_star, tau){
-  
-  #parameters of ALD mixture representation
+#'function simulates response variable y based on fitted BQR model and its respective
+#'draws of beta and sigma
+#'
+#'@param fit fitted BQR model from function bqr
+#'@param x_star vector of regressor variable (1, x1, ..., xk); must include intercept 1
+predict_bqr <- function(fit, x_star){
   
   #extract parameter draws from fit
   beta_draws <- fit$beta_draws
   sigma_draws <- fit$sigma_draws
+  p <- fit$p
   
-  n <- ncol(beta_draws)
+  #parameters of ALD mixture representation
+  theta <- (1 - 2 * p) / (p * (1 - p))
+  tau2 <- 2 / (p * (1 - p))
+  
+  n <- nrow(beta_draws)
   
   #vector for calculated ys
   y_hat <- numeric(n)
   
   for(i in 1:n){
-    #sample 
+    beta <- beta_draws[i,]
+    sigma <- sigma_draws[i]
+    
+    #sample z from exponential Distribution E(1/sigma) 
+    z <- rexp(1, rate = 1)
+    
+    #sample u from standard normal distribution
+    u <- rnorm(1,0,1)
+    
+    #caclulate y from ALD mixture representation
+    y_hat[i] <- sum(beta * x_star) + theta * z + sqrt(tau2 * sigma * z) * u
   }
+  
+  return(y_hat)
 }

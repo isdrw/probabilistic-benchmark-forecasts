@@ -156,7 +156,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_skewed_t(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = FALSE)
+      ~ fit_skewed_t(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -174,7 +174,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_skewed_t(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_skewed_t(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -192,7 +192,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_skewed_t(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_skewed_t(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -210,7 +210,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_skewed_t(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_skewed_t(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -243,11 +243,11 @@ pred_weo_filtered <- pred_weo %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_weo_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_weo_eval_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -277,11 +277,11 @@ pred_rw_filtered <- pred_rw %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_rw_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_rw_eval_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -311,11 +311,11 @@ pred_ar1_filtered <- pred_ar1 %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_ar1_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_ar1_eval_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -346,11 +346,11 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima1_1_0, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_arima1_1_0_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_arima1_1_0_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima1_1_0_eval, paste0(
-  "results/skewed_t_quantiles_prediction/mean 0 assumption/skewed_t_prediction_arima1_1_0_eval_", 
+  "results/skewed_t_quantiles_prediction/fitted_mean/skewed_t_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 
