@@ -1130,8 +1130,25 @@ easyUQ_idr <- function(x, y){
     #linear part of objective function as defined in doc of OSQP solver
     q <- -z
     
+    #solve quadratic problem with osqp solver
+    solver <- osqp::osqp(
+      P = P,
+      q = q,
+      A = A,
+      l = l,
+      u = u
+    )
     
+    #extract solution
+    F_hat[,j] <- solver$Solve()$x
   }
+  
+  #return solution
+  list(
+    x = x,
+    y_grid = y_grid,
+    F_hat = F_hat
+  )
   
 }
 
