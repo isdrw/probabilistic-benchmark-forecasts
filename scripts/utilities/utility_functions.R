@@ -1,5 +1,5 @@
 # utility_functions.R
-# Modular utility functions
+
 
 # ===========================
 ## Scoring functions
@@ -1093,3 +1093,46 @@ predict_bqr <- function(fit, x_star){
   
   return(y_hat)
 }
+
+
+#'EasyUQ isotonic distributional regression
+#'
+easyUQ_idr <- function(x, y){
+  
+  #sort value pairs by order of x vector
+  order_x <- order(x)
+  x <- x[x_order]
+  y <- y[x_order]
+  n <- length(y)
+  
+  #threshold values of y 
+  y_grid <- sort(unique(y))
+  m <- length(y_grid)
+  
+  #Matrix for quadratic term in objective function (defined for usage in OSQP solver)
+  P <- Diagonal(n)
+  
+  #constraint Matrix A theta_i - theta_(i+1) >= 0 --> A * theta >= 0
+  A <- cbind(Diagonal(n-1), Matrix(0, nrow = n-1, ncol = 1)) - 
+    cbind(Matrix(0, nrow = n-1, ncol = 1), Diagonal(n-1))
+  #lower bound of constraint l
+  l <- rep(0, n-1)
+  #upper bound of constraint inf (no bound)
+  u <- rep(inf, n-1)
+  
+  #objective matrix with n rows for each x and m cols for each threshold of y
+  F_hat <- matrix(NA, nrow = n, ncol = m)
+  
+  for(j in 1:m){
+    #value of indicator function y <= y_j (threshold)
+    z <- as.numeric(y <= y_grid[j])
+    
+    #linear part of objective function as defined in doc of OSQP solver
+    q <- -z
+    
+    
+  }
+  
+}
+
+
