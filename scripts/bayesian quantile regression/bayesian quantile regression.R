@@ -30,7 +30,7 @@ df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
 df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
-fit_bqr <- function(df, country, tau, target, h, R=11){
+fit_bqr <- function(df, country, tau, target, h){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -43,12 +43,12 @@ fit_bqr <- function(df, country, tau, target, h, R=11){
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R+1,nrow(data_by_country)-1)){
+  for(i in seq(2,nrow(data_by_country)-1)){
     #predicted value vector
-    pred_vec <- data_by_country[(i-R+1):i,][[paste0("pred_", target)]]
+    pred_vec <- data_by_country[2:i,][[paste0("pred_", target)]]
     
     #lagged values
-    lagged_tv <- data_by_country[(i-R):(i-1), ][[paste0("tv_", target)]]
+    lagged_tv <- data_by_country[1:(i-1), ][[paste0("tv_", target)]]
     
     #bind to matrix
     data_X <- cbind(lagged_tv, pred_vec)
@@ -58,10 +58,10 @@ fit_bqr <- function(df, country, tau, target, h, R=11){
     truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
     
     #truth value vector
-    data_tv1 <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
+    data_tv1 <- data_by_country[2:i,][[paste0("tv_", target)]]
     
     #start date of rolling window
-    forecast_year_start <- data_by_country[(i-R+1),"forecast_year"]
+    forecast_year_start <- data_by_country[2,"forecast_year"]
     
     #forecast year of point after rolling window for prediction
     forecast_year_end <- data_by_country[i+1,"forecast_year"]
@@ -85,7 +85,7 @@ fit_bqr <- function(df, country, tau, target, h, R=11){
     
     #fit lqr model 
     fit_l <- tryCatch({
-      bqr(data_tv1, data_X, p = (1-tau)/2, seed = 2026)
+      bqr(data_tv1, data_X, p = (1-tau)/2, seed = 2026, use_minesota = TRUE)
     },error=function(e){
       message("Fit failed for ", country, " (", 
               forecast_year_start, "–", forecast_year_end, "): ", e$message)
@@ -93,7 +93,7 @@ fit_bqr <- function(df, country, tau, target, h, R=11){
     })
     
     fit_u <- tryCatch({
-      bqr(data_tv1, data_X, p = (1+tau)/2, seed = 2026)
+      bqr(data_tv1, data_X, p = (1+tau)/2, seed = 2026, use_minesota = TRUE)
     },error=function(e){
       message("Fit failed for ", country, " (", 
               forecast_year_start, "–", forecast_year_end, "): ", e$message)

@@ -866,7 +866,7 @@ rinvgauss <- function(n, mu, lambda){
 #'@param s0 prior parameter of inverse Gamma distribution of sigma InvG(n0,s0)
 #'@param seed
 #'
-bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NULL, use_minesota = TRUE, lambda1 = 0.04, lambda2 = 0.25, n0 = 0.01, s0 = 0.01, seed = NULL){
+bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NULL, use_minesota = TRUE, lambda1 = 0.04, lambda2 = 0.25, n0 = 0, s0 = 0, seed = NULL){
   
   #=====================================
   #seed it specified
@@ -933,7 +933,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   }else{
     #prior covariance matrix of beta 
     if(is.null(B0)){
-      B0 <- diag(1000, k)
+      B0 <- diag(10, k)
     }  
   }
   
@@ -957,7 +957,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   #initial values for parameters beta and sigma
   
   beta <- rep(0, k)
-  sigma <- 1
+  sigma <- var(y)
   z <- rep(1, n) #not needed for first draw with current sample order
   
   #=====================================
@@ -982,18 +982,19 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
     delta2 <- r2/ (tau2 * sigma)
     gamma2 <- 2 / sigma + theta * theta / (tau2 * sigma)
     
-    mu_w <- sqrt(delta2 / pmax(gamma2, .Machine$double.eps))
-    lambda_w <- delta2
+    mu_w <- sqrt(gamma2 / pmax(delta2, .Machine$double.eps))
+    lambda_w <- gamma2
     
     #draw w from inverse Gauss distribution
     w <- rinvgauss(n, mu = mu_w, lambda = lambda_w)
+    w <- pmax(w, 1e-6)
     #take reciprocal value of w to get z (Jørgensen, B. (1982)) since z itself 
     #has conditional distribution of general inverse Gaussian GIG(1/2, a, b)
     #V ~ GIG(1/2, a, b) <-> 1/Z ~ IG(sqrt(b/a), b)
     #!note: Jørgensen 1982 and Kozumi & Kobayashi 2011 have different definitions for 
     #the parameters of the GIG density function. a, b from Jørgensen 1982 is equivalent 
     #delta^2 and gamma^2 respectively
-    v <- 1/pmax(w, .Machine$double.eps)
+    v <- 1/w
     #=====================================
     #2. draw sigma from inverse Gamma 
     
@@ -1015,9 +1016,11 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
     XV <- X * v_inv_vec
     
     #calculate posterior Cov-Matrix of beta
-    B0_inv <- solve(B0)
+    B0_inv <- diag(1 / diag(B0))
     var_post_inv <- 1 / (tau2 * sigma) * crossprod(X,XV) + B0_inv
     var_post <- solve(var_post_inv)
+    #ensure symmetry
+    var_post <- (var_post + t(var_post)) / 2
     
     #calculate posterior mean of beta
     mean_post <- var_post %*% 
@@ -1027,7 +1030,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
     if(!requireNamespace("mvtnorm", quietly = TRUE)){
       stop("mvtnorm package needed")
     }
-    beta <- as.numeric(mvtnorm::rmvnorm(1, mean = mean_post, sigma = var_post))
+    beta <- as.numeric(mvtnorm::rmvnorm(1, mean = as.numeric(mean_post), sigma = var_post))
     
     #=====================================
     #4. store sampled parameters
@@ -1105,14 +1108,14 @@ easyUQ_idr <- function(x, y){
   y <- y[x_order]
   n <- length(y)
   
-  #threshold values of y 
+  #threshold values of y
   y_grid <- sort(unique(y))
   m <- length(y_grid)
   
   #Matrix for quadratic term in objective function (defined for usage in OSQP solver)
   P <- Diagonal(n)
   
-  #constraint Matrix A theta_i - theta_(i+1) >= 0 --> A * theta >= 0
+  #constraint Matrix A: theta_i - theta_(i+1) >= 0 for all i <==> A * theta >= 0
   A <- cbind(Diagonal(n-1), Matrix(0, nrow = n-1, ncol = 1)) - 
     cbind(Matrix(0, nrow = n-1, ncol = 1), Diagonal(n-1))
   #lower bound of constraint l
@@ -1152,4 +1155,59 @@ easyUQ_idr <- function(x, y){
   
 }
 
+#'function returns estimated cdfs of fitted model given vector x_new of new
+#'values via linear interpolation
+interpolate_easyUQ_cdf <- function(model, x_new){
+  #extract estimated distributions from model
+  x <- model$x
+  F_hat <- model$F_hat
+  
+  #for each new x interpolation of estimated cdf as described in Walz et. al 2024
+  F_new <- sapply(x_new, function(x0){
+    #case: x_new < smallest x from model input
+    if(x0 < x[1]){
+      #return first cdf 
+      return(F_hat[1,])
+    }
+    
+    #case: x_new > biggest x from model input
+    if(x0 > x[length(x)]){
+      #return last cdf
+      return(F_hat[nrow(F_hat),])
+    }
+    
+    #case: x_new in between values x_k and x_(k+1) of model input vector (x_1, ..., x_n)
+    apply(F_hat, 2, function(F_col){
+      #linear interpolation: F_(x_k) + (x0 - x_k) / (x_(k+1) - x_k) * (F_(x_(k+1)) - F_(x_k))
+      #for x_k < x0 < x_(k+1)
+      return(approx(x = x, y = F_col, xout = x0, rule = 2)$y)
+    })
+  })
+  
+  return(F_new)
+}
 
+
+#'function calculates specified quantiles of fitted EasyUQ model based on new data vector x
+predict_easyUQ_quantiles <- function(model, x_new, probs){
+  #calculate new cdfs based on x_new 
+  F_new <-  interpolate_easyUQ_cdf(model = model, x_new = x_new)
+  y_grid <- model$y_grid
+  
+  apply(F_new, 2, function(Fx){
+    #linear interpolation: 
+    approx(x = Fx, y = y_grid, xout = probs, rule = 2)$y
+  })
+  
+}
+
+
+fit_easyUQ <- function(x, y, prob, x_new){
+  #fit model on data
+  fit <- easyUQ_idr(x, y)
+  
+  #caclulate quantile of y for new values of x
+  q <- predict_easyUQ_quantiles(model = fit, x_new = x_new, probs = prob)
+  
+  return(q)
+}
