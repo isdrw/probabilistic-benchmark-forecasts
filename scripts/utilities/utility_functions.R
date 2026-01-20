@@ -102,11 +102,27 @@ summarise_IS_of_df <- function(df){
 #'
 #'@return numeric vector of weighted Interval Scores with same length as input vectors
 weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_set) {
+  
+  #check valid input
+  if (is.null(truth_value) || is.null(lower_bound) || is.null(upper_bound)) {
+    return(NA_real_)
+  }
+  
+  #ensure matrix shape
+  truth_value <- as.matrix(truth_value)
+  lower_bound <- as.matrix(lower_bound)
+  upper_bound <- as.matrix(upper_bound)
+  
   #number of taus
   k <- length(tau_set)
   
   #length of truth_values
   n <- nrow(truth_value)
+  
+  #check matrix dimensions
+  if(!all(dim(truth_value) == dim(lower_bound), dim(truth_value) == dim(upper_bound))){
+    stop("truth_value, lower_bound and upper_bound must all have same dimensions")
+  }
   
   #check for valid tau
   if(k==0){
@@ -115,10 +131,10 @@ weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_s
   }
   
   #set of interval scores col=taus and row=interval scores 
-  IS_mat <- matrix(NA_real_, nrow=n, ncol=k)
+  IS_mat <- matrix(NA_real_, nrow = n, ncol = k)
   
   #calculate interval scores for each tau
-  for(i in 1:k){
+  for(i in seq_len(k)){
     IS_mat[,i] <- interval_score(truth_value[,i], lower_bound[,i], upper_bound[,i], tau_set[i])
   }
   
@@ -140,18 +156,30 @@ weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_s
 #'@param column name to be pulled
 #'@param taus set of taus to be 
 make_tau_matrix <- function(df, column, taus) {
-  #convert taus to character because of comparison issues of numeric values (0.3 and 0.6)
-  taus <- as.character(taus)
   
-  df %>%
+  taus_chr <- as.character(taus)
+  
+  tmp <- df %>%
     dplyr::mutate(tau = as.character(tau)) %>%
-    dplyr::filter(tau %in% taus) %>%
+    dplyr::filter(tau %in% taus_chr) %>%
     dplyr::group_by(tau) %>%
     dplyr::summarise(vals = list(.data[[column]]), .groups = "drop") %>%
-    dplyr::arrange(tau) %>%
-    dplyr::pull(vals) %>%
-    do.call(cbind, .)
+    dplyr::arrange(tau)
+  
+  if (nrow(tmp) == 0) {
+    return(matrix(NA_real_, nrow = 0, ncol = length(taus)))
+  }
+  
+  mats <- tmp$vals
+  
+  # ensure all elements are vectors
+  if (any(vapply(mats, is.null, logical(1)))) {
+    return(matrix(NA_real_, nrow = 0, ncol = length(taus)))
+  }
+  
+  do.call(cbind, mats)
 }
+
 
 
 calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
@@ -163,6 +191,11 @@ calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
   
   #truth_value matrix
   truth_value_mat <- make_tau_matrix(df = df, "truth_value", taus = taus)
+  
+  if (is.null(lower_bound_mat) || is.null(upper_bound_mat) || 
+      is.null(truth_value_mat) || nrow(lower_bound_mat) == 0) {
+    return(NA_real_)
+  }
   
   #calculate WIS vector
   WIS <- weighted_interval_score(
@@ -1104,13 +1137,21 @@ easyUQ_idr <- function(x, y){
   
   #sort value pairs by order of x vector
   order_x <- order(x)
-  x <- x[x_order]
-  y <- y[x_order]
+  x <- x[order_x]
+  y <- y[order_x]
   n <- length(y)
   
   #threshold values of y
   y_grid <- sort(unique(y))
   m <- length(y_grid)
+  #check for multiple different values
+  if(m < 2){
+    stop("y must contain at least two different non-NA values")
+  }
+  
+  if(n < 2){
+    stop("at least two values of x needed for isotonic constraints")
+  }
   
   #Matrix for quadratic term in objective function (defined for usage in OSQP solver)
   P <- Diagonal(n)
@@ -1121,12 +1162,12 @@ easyUQ_idr <- function(x, y){
   #lower bound of constraint l
   l <- rep(0, n-1)
   #upper bound of constraint inf (no bound)
-  u <- rep(inf, n-1)
+  u <- rep(Inf, n-1)
   
   #objective matrix with n rows for each x and m cols for each threshold of y
-  F_hat <- matrix(NA, nrow = n, ncol = m)
+  F_hat <- matrix(NA_real_, nrow = n, ncol = m)
   
-  for(j in 1:m){
+  for(j in seq_len(m)){
     #value of indicator function y <= y_j (threshold)
     z <- as.numeric(y <= y_grid[j])
     
@@ -1158,31 +1199,25 @@ easyUQ_idr <- function(x, y){
 #'function returns estimated cdfs of fitted model given vector x_new of new
 #'values via linear interpolation
 interpolate_easyUQ_cdf <- function(model, x_new){
+  
+  #check for non existent value of x_new
+  if(is.null(x_new) || all(is.na(x_new))){
+    return(NULL)
+  }
+  
   #extract estimated distributions from model
   x <- model$x
   F_hat <- model$F_hat
   
+  F_new <- matrix(NA_real_, nrow = length(x_new), ncol = ncol(F_hat))
+  
   #for each new x interpolation of estimated cdf as described in Walz et. al 2024
-  F_new <- sapply(x_new, function(x0){
-    #case: x_new < smallest x from model input
-    if(x0 < x[1]){
-      #return first cdf 
-      return(F_hat[1,])
-    }
-    
-    #case: x_new > biggest x from model input
-    if(x0 > x[length(x)]){
-      #return last cdf
-      return(F_hat[nrow(F_hat),])
-    }
-    
-    #case: x_new in between values x_k and x_(k+1) of model input vector (x_1, ..., x_n)
-    apply(F_hat, 2, function(F_col){
-      #linear interpolation: F_(x_k) + (x0 - x_k) / (x_(k+1) - x_k) * (F_(x_(k+1)) - F_(x_k))
-      #for x_k < x0 < x_(k+1)
-      return(approx(x = x, y = F_col, xout = x0, rule = 2)$y)
-    })
-  })
+  for(j in seq_len(ncol(F_hat))){
+    #rule 2 ensures cases 
+    #1. case: x_new < smallest x from model input --> F_x_1(y)
+    #2. case: x_new > biggest x from model input --> F_x_n(y)
+    F_new[, j] <- approx(x = x, y = F_hat[, j], xout = x_new, rule = 2)$y
+  }
   
   return(F_new)
 }
@@ -1190,24 +1225,44 @@ interpolate_easyUQ_cdf <- function(model, x_new){
 
 #'function calculates specified quantiles of fitted EasyUQ model based on new data vector x
 predict_easyUQ_quantiles <- function(model, x_new, probs){
+  
+  #check for non existent value of x_new
+  if(is.null(x_new) || all(is.na(x_new))){
+    return(NULL)
+  }
+  
   #calculate new cdfs based on x_new 
   F_new <-  interpolate_easyUQ_cdf(model = model, x_new = x_new)
   y_grid <- model$y_grid
   
-  apply(F_new, 2, function(Fx){
-    #linear interpolation: 
-    approx(x = Fx, y = y_grid, xout = probs, rule = 2)$y
-  })
+  quants <- matrix(NA_real_, nrow = length(x_new), ncol = length(probs))
   
+  for(i in seq_len(nrow(F_new))){
+    #check for insufficient data
+    valid <- !(is.na(F_new[i, ]) | is.na(y_grid))
+    
+    if(sum(valid) < 2 || length(unique(F_new[valid])) < 2){
+      next
+    }
+    
+    #linear interpolation: 
+    quants[i, ] <- approx(x = F_new[i, valid], y = y_grid[valid], xout = probs, rule = 2)$y
+  }
+  
+  return(quants)
 }
 
 
-fit_easyUQ <- function(x, y, prob, x_new){
+fit_easyUQ <- function(x, y, tau, x_new){
   #fit model on data
   fit <- easyUQ_idr(x, y)
   
+  probs <- c((1 - tau) / 2, (1 + tau) / 2)
   #caclulate quantile of y for new values of x
-  q <- predict_easyUQ_quantiles(model = fit, x_new = x_new, probs = prob)
+  pred <- predict_easyUQ_quantiles(model = fit, x_new = x_new, probs = probs)
   
-  return(q)
+  return(list(
+    lower_bound = pred[,1],
+    upper_bound = pred[,2]
+  ))
 }

@@ -43,19 +43,19 @@ fit_lqr <- function(df, country, tau, target, h, R=11){
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country)-1)){
+  for(i in seq(1,nrow(data_by_country)-1)){
     #predicted value vector
-    data_pred <- data_by_country[(i-R+1):i,][[paste0("pred_", target)]]
+    data_pred <- data_by_country[1:i,][[paste0("pred_", target)]]
     
     #last prediction and truth value of point after rolling window
     last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
     truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
     
     #truth value vector
-    data_tv1 <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
+    data_tv1 <- data_by_country[1:i,][[paste0("tv_", target)]]
 
     #start date of rolling window
-    forecast_year_start <- data_by_country[(i-R+1),"forecast_year"]
+    forecast_year_start <- data_by_country[1,"forecast_year"]
     
     #forecast year of point after rolling window for prediction
     forecast_year_end <- data_by_country[i+1,"forecast_year"]
