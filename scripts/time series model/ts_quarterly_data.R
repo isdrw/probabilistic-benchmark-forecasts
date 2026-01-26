@@ -18,7 +18,7 @@ df_oecd <- load_and_prepare_oecd_data()
 
 #Function to fit ARIMA model either with given order or with automatic
 #fitting of best order according to AIC
-fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), auto=FALSE){
+fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), auto=FALSE){
   
   #prediction
   predictions <- init_output_df(interval = FALSE)
@@ -37,34 +37,35 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     truth_values <- data_by_country[(i+1):tv_end, ][[target]]
     #fill with NA for non-existent truth_values
     if(length(truth_values) < n_ahead){
-      truth_values <- c(truth_values, rep(NA, n_ahead - length(truth_values)))
+      truth_values <- c(truth_values, rep(NA_real_, n_ahead - length(truth_values)))
     }
     
     #start/end date of observations 
-    start_year <- data_by_country[i-R+1,"forecast_year"]
-    end_year <- data_by_country[i+1,"forecast_year"]
-    start_quarter <- data_by_country[i-R+1,"forecast_quarter"]
-    end_quarter <- data_by_country[i+1,"forecast_quarter"]
+    start_year <- data_by_country[(i-R+1),"forecast_year"]
+    end_year <- data_by_country[i,"forecast_year"]
+    start_quarter <- data_by_country[(i-R+1),"forecast_quarter"]
+    end_quarter <- data_by_country[i,"forecast_quarter"]
     start_date <- c(start_year,start_quarter)
     
     #skip if only NAs
     if(all(is.na(data)) || is.null(data)){
-      message("no valid data for ", country, " between ", start_year, " and ", end_year)
+      message("no valid data for ", country, " and year: ", end_year)
       next
     }
-    #replace NAs with mean 
-    data[is.na(data)] <- mean(data,na.rm=TRUE)
     
     #convert to time series object
-    ts_data <- ts(data,start = start_date,frequency = 4)
+    ts_data <- ts(data, start = start_date,frequency = 4)
+    
+    #NA handling
+    ts_data <- na.exclude(ts_data)
     
     #ARIMA model fit with order=order
     fit <- tryCatch({
       if(!auto){
-        arima(ts_data,order = order)
+        arima(ts_data, order = order)
       }else{
         #fit model with best AIC 
-        auto.arima(ts_data,ic = "aic")
+        auto.arima(ts_data, ic = "aic")
       }
     },error=function(e){
       message("Fit failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
@@ -73,7 +74,7 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     
     
     #predict values for upcoming 1 (4 quarters)
-    #second prediction equals 0.5 horizon forecast and 4th prediction equals 1.0 horizon forecast
+    #first prediction equals 0.0 horizon forecast and 3th prediction equals 0.5 horizon forecast...
     pred <- tryCatch({
       predict(fit, n.ahead = n_ahead)
     },error=function(e){
@@ -89,7 +90,7 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 4, order=c(1,0,0), 
     
     # horizons (quarterly)
     h_steps <- 1:n_ahead
-    horizons <- h_steps / 4
+    horizons <- h_steps / 4 - 0.25
     
     # target quarter and year vectors based on n_ahead forecasts
     tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
@@ -145,9 +146,21 @@ pred_1_1_0 <- grid %>%
   pull(results) %>%
   bind_rows()
 
+#fit ARIMA model with auto fitting based on ALC on quarterly OECD data with rolling window
+pred_arima_auto <- grid %>% 
+  mutate(
+    results = pmap(
+      list(country, target),
+      ~ fit_arima(df_oecd, ..1, ..2, auto = TRUE)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
 #save predictions
 write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima1_0_0.csv", row.names = FALSE)
 write.csv(pred_1_1_0, "data/processed/point predictions/point_predictions_arima1_1_0.csv", row.names = FALSE)
+write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)
 
 
 

@@ -27,6 +27,9 @@ df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
 df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
+#load and prepare data from file "data/processed/point_predictions_arima_auto.csv" quarterly data
+df_arima_auto <- load_and_prepare_ARIMA_auto_data() %>% aggregate_to_annual_input()
+
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
@@ -44,6 +47,11 @@ df_ar1 <- df_ar1 %>% mutate(
 )
 #calc predictions errors
 df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
+  gdp_err = abs(tv_gdp - pred_gdp),
+  cpi_err = abs(tv_cpi - pred_cpi)
+)
+#calc predictions errors
+df_arima_auto <- df_arima_auto %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
@@ -144,7 +152,7 @@ pred_weo <- grid_weo %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on Random Walk data (R=44 due to quarterly data)
+#prediction on Random Walk data 
 grid_rw  <- crossing(
   country = unique(df_rw$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -162,7 +170,7 @@ pred_rw <- grid_rw %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on AR(1) data (R=44 due to quarterly data)
+#prediction on AR(1) data 
 grid_ar1  <- crossing(
   country = unique(df_ar1$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -180,7 +188,7 @@ pred_ar1 <- grid_ar1 %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on ARIMA(1,1,0) data (R=44 due to quarterly data)
+#prediction on ARIMA(1,1,0) data
 grid_arima1_1_0  <- crossing(
   country = unique(df_arima1_1_0$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -193,6 +201,25 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
     results = pmap(
       list(country, tau, target, horizon),
       ~ fit_emp(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+
+#prediction on auto fitted ARIMA data
+grid_arima_auto  <- crossing(
+  country = unique(df_arima_auto$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = c(0.5, 1.0)
+)
+
+pred_arima_auto <- grid_arima_auto %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ fit_emp(df_arima_auto, ..1, ..2, ..3, ..4, R = 11)
     )
   ) %>%
   pull(results) %>%
@@ -345,3 +372,42 @@ write.csv(pred_arima1_1_0, paste0(
 write.csv(pred_arima1_1_0_eval, paste0(
   "results/empirical_quantiles_prediction/empirical_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
+
+#==============================================================================
+##Evaluation of prediction on dataset Random Walk (quarterly, generated)
+
+#PAVA correction 
+pred_arima_auto <- pava_correct_df(pred_arima_auto)
+
+#truth value within predicted interval?
+pred_arima_auto <- is_covered(pred_arima_auto)
+
+#interval scores
+pred_arima_auto <- calc_IS_of_df(pred_arima_auto)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_arima_auto_filtered <- pred_arima_auto %>% 
+  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+
+#summary of scores
+#coverage summary
+#Interval score summary
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_arima_auto_eval <- pred_arima_auto_filtered %>% 
+    summarise_eval())
+
+#save prediction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_arima_auto, paste0(
+  "results/empirical_quantiles_prediction/empirical_prediction_arima_auto_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_arima_auto_eval, paste0(
+  "results/empirical_quantiles_prediction/empirical_prediction_arima_auto_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+#==============================================================================

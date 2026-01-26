@@ -17,7 +17,7 @@ source("scripts/utilities/data_transformation_functions.R")
 df_oecd <- load_and_prepare_oecd_data()
 
 
-fit_rw <- function(df, country, target, n_ahead = 4){
+fit_rw <- function(df, country, target, n_ahead = 7){
   
   #prediction dataframe
   predictions <- init_output_df(interval = FALSE)
@@ -46,15 +46,15 @@ fit_rw <- function(df, country, target, n_ahead = 4){
     }
     
     #start/end date of observations 
-    end_year <- data_by_country[i,"forecast_year"]
-    end_quarter <- data_by_country[i,"forecast_quarter"]
+    end_year <- data_by_country[i-1,"forecast_year"]
+    end_quarter <- data_by_country[i-1,"forecast_quarter"]
     
     #random walk prediction (last observation)
     pred_rw <- rep(last_value, n_ahead)
     
     # horizons (quarterly)
     h_steps <- 1:n_ahead
-    horizons <- h_steps / 4
+    horizons <- h_steps / 4 - 0.25
     
     # target quarter and year vectors based on n_ahead forecasts
     tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
@@ -82,7 +82,7 @@ fit_rw <- function(df, country, target, n_ahead = 4){
   return(predictions)
 }
 
-#create grid 
+  #create grid 
 grid <- crossing(
   country = unique(df_oecd$country),
   target = c("tv_gdp", "tv_cpi")
