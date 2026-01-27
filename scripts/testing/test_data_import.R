@@ -17,12 +17,14 @@ beta0 <- 0.34
 beta1 <- 2.25
 y <- beta0 + beta1 * x + theta * z + sqrt(tau2 * sigma * z) * eps
 
+bayesQR::bayesQR()
 
 fit <- tryCatch({
   bqr(y = y, X = as.matrix(x), p = 0.8, n_iter = 10000, burn = 2000, use_minesota = FALSE)
 }, error=function(e){
   message("Fit failed, message: ", e$message)
 })
+
 
 betas <- fit$beta_draws
 fit$beta_mean

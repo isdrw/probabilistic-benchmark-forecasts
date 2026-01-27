@@ -10,6 +10,7 @@ library(fitdistrplus)
 library(forecast)
 library(quantreg)
 library(purrr)
+library(bayesQR)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
@@ -50,15 +51,20 @@ fit_bqr <- function(df, country, tau, target, h){
     #lagged values
     lagged_tv <- data_by_country[1:(i-1), ][[paste0("tv_", target)]]
     
+    #truth value vector
+    data_tv1 <- data_by_country[2:i,][[paste0("tv_", target)]]
+    
     #bind to matrix
-    data_X <- cbind(lagged_tv, pred_vec)
+    data_bqr <- data.frame(
+      y = data_tv1,
+      lagged_tv = lagged_tv,
+      pred_vec = pred_vec
+    )
+    
     #last prediction, truth value and last lagged value of point after rolling window
     last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
     last_tv_lag <- as.numeric(data_by_country[i, ][[paste0("tv_", target)]])
     truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
-    
-    #truth value vector
-    data_tv1 <- data_by_country[2:i,][[paste0("tv_", target)]]
     
     #start date of rolling window
     forecast_year_start <- data_by_country[2,"forecast_year"]
@@ -74,18 +80,26 @@ fit_bqr <- function(df, country, tau, target, h){
     
     #target quarter of point after rolling window for prediction
     target_quarter_end <- (forecast_quarter_end + 4 * h - 1) %% 4 +1
+  
+    #remove NAs
+    data_bqr <- na.omit(data_bqr)
     
-    #skip if only NAs
-    if(all(is.na(data_X)) || is.null(data_X) || 
-       all(is.na(data_tv1)) || is.null(data_tv1)){
-      message("no valid data for ", country, " between ", 
-              forecast_year_start, " and ", forecast_year_end)
-      next
-    }
+    cat(
+      "\ni:", i,
+      " rows:", nrow(data_bqr),
+      " anyNA:", anyNA(data_bqr)
+    )
     
     #fit lqr model 
     fit_l <- tryCatch({
-      bqr(data_tv1, data_X, p = (1-tau)/2, seed = 2026, use_minesota = TRUE)
+      bayesQR::bayesQR(
+        y ~ lagged_tv + pred_vec, 
+        data = data_bqr, 
+        quantile = (1 - tau) / 2, 
+        ndraw = 5000,
+        normal.approx = FALSE
+      )
+      #bqr(data_bqr$y, data_bqr[,-1], p = (1-tau)/2, seed = 2026, use_minesota = TRUE)
     },error=function(e){
       message("Fit failed for ", country, " (", 
               forecast_year_start, "–", forecast_year_end, "): ", e$message)
@@ -93,7 +107,14 @@ fit_bqr <- function(df, country, tau, target, h){
     })
     
     fit_u <- tryCatch({
-      bqr(data_tv1, data_X, p = (1+tau)/2, seed = 2026, use_minesota = TRUE)
+      bayesQR::bayesQR(
+        y ~ lagged_tv + pred_vec, 
+        data = data_bqr, 
+        quantile = (1 + tau) / 2, 
+        ndraw = 5000,
+        normal.approx = FALSE
+      )
+      #bqr(data_bqr$y, data_bqr[,-1], p = (1+tau)/2, seed = 2026, use_minesota = TRUE)
     },error=function(e){
       message("Fit failed for ", country, " (", 
               forecast_year_start, "–", forecast_year_end, "): ", e$message)
@@ -104,9 +125,40 @@ fit_bqr <- function(df, country, tau, target, h){
       next
     }
     
+    sum_l <- tryCatch(summary(fit_l, burnin = 500), error = function(e) NULL)
+    sum_u <- tryCatch(summary(fit_u, burnin = 500), error = function(e) NULL)
+    
+    betadraws_l <- sum_l[[1]]$betadraw
+    betadraws_u <- sum_u[[1]]$betadraw
+    
+    if(is.null(betadraws_l) || !is.matrix(betadraws_l) || nrow(betadraws_l) == 0 ||
+       is.null(betadraws_u) || !is.matrix(betadraws_u) || nrow(betadraws_u) == 0) {
+      message("No beta draws at iteration ", i, ", skipping.")
+      next
+    }
+    
+    # Remove rows with NA
+    betadraws_l <- betadraws_l[complete.cases(betadraws_l), ]
+    betadraws_u <- betadraws_u[complete.cases(betadraws_u), ]
+    
+    # Skip if all rows removed
+    if(nrow(betadraws_l) == 0 || nrow(betadraws_u) == 0) {
+      message("All beta draws are NA at iteration ", i)
+      next
+    }
+ 
+    if(is.null(betadraws_l)||is.null(betadraws_u)||!is.matrix(betadraws_l)||!is.matrix(betadraws_u)){
+      message("No beta draws produced")
+      next
+    }
+    
+    #extract means of beta draws
+    beta_l <- colMeans(betadraws_l, na.rm = TRUE)
+    beta_u <- colMeans(betadraws_u, na.rm = TRUE)
+    
     #prediction of quantile based on last point forecast
-    pred_l <- fit_l$beta_mean[1] + fit_l$beta_mean[2] * last_tv_lag + fit_l$beta_mean[3] * last_pred
-    pred_u <- fit_u$beta_mean[1] + fit_u$beta_mean[2] * last_tv_lag + fit_u$beta_mean[3] * last_pred
+    pred_l <- beta_l[1] + beta_l[2] * last_tv_lag + beta_l[3] * last_pred
+    pred_u <- beta_u[1] + beta_u[2] * last_tv_lag + beta_u[3] * last_pred
     
     #new row
     out_list[[index]] <- new_pred_row(
@@ -199,24 +251,3 @@ write.csv(pred_weo_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 
-test_data <- df_weo_g7 %>% filter(country == "Germany")
-
-test_grid <- crossing(
-  country = unique(test_data$country),
-  tau = seq(0.1, 0.9, 0.1),
-  target = c("gdp", "cpi"),
-  horizon = c(0.5)
-)
-
-test_pred <- test_grid %>% 
-  mutate(
-    results = pmap(
-      list(country, tau, target, horizon),
-      ~ fit_bqr(test_data, ..1, ..2, ..3, ..4)
-    )
-  ) %>%
-  pull(results) %>%
-  bind_rows()
-
-test_pred <- test_pred %>% is_covered() %>% calc_IS_of_df()
-test_pred %>% summarise_eval()

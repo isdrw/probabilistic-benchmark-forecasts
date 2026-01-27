@@ -1092,7 +1092,7 @@ bqr <- function(y, X, p = 0.5, n_iter = 3000, burn = 500, beta0 = NULL, B0 = NUL
   return(out_list)
 }
 
-#'function simulates response variable y based on fitted BQR model and its respective
+#'function simulates response variable y based on fitted 0.5-BQR model and its respective
 #'draws of beta and sigma
 #'
 #'@param fit fitted BQR model from function bqr
@@ -1266,3 +1266,52 @@ fit_easyUQ <- function(x, y, tau, x_new){
     upper_bound = pred[,2]
   ))
 }
+
+fit_easyUQ <- function(x, y, tau = 0.8, x_new) {
+  # Remove NAs
+  valid <- !(is.na(x) | is.na(y))
+  x <- x[valid]
+  y <- y[valid]
+  
+  # Check minimal conditions
+  if (length(x) < 3 || length(unique(x)) < 2 || length(unique(y)) < 2 || is.na(x_new)) {
+    return(NULL)
+  }
+  
+  # Define lower and upper quantile probabilities
+  probs <- c((1 - tau)/2, (1 + tau)/2)
+  
+  tryCatch({
+    # Fit IDR: x must be data.frame, y must be numeric
+    idr_fit <- isodistrreg::idr(y = y, X = data.frame(x = x))
+    
+    # Ensure x_new is a data.frame
+    x_new_df <- if (!is.data.frame(x_new)) data.frame(x = x_new) else x_new
+    
+    # Predict using IDR
+    pred <- predict(idr_fit, data = x_new_df)
+    
+    # Extract quantiles
+    pred_q <- qpred(pred, quantiles = probs)
+    
+    # Return numeric results
+    if (is.vector(pred_q)) {
+      list(
+        lower_bound = pred_q[1],
+        upper_bound = pred_q[2]
+      )
+    } else {
+      # For multiple predictions
+      data.frame(
+        lower_bound = pred_q[, 1],
+        upper_bound = pred_q[, 2]
+      )
+    }
+    
+  }, error = function(e) {
+    message("IDR error: ", e$message)
+    NULL
+  })
+}
+
+

@@ -73,7 +73,7 @@ fit_easyUQ_idr <- function(df, country, tau, target, h, R = 11){
     }
     
     fit <- tryCatch({
-      fit_easyUQ(x = pred_vec, y = data_tv1, tau = tau, x_new = last_pred)
+      fit_easyUQ(x = pred_vec, y = as.numeric(data_tv1), tau = tau, x_new = last_pred)
     }, error = function(e){
       message("Fit failed for ", country, "\n for target year: ", target_year_end, "\n", e$message)
       NULL
@@ -136,7 +136,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_easyUQ_idr(df_weo_g7, ..1, ..2, ..3, ..4, R = 22)
+      ~ fit_easyUQ_idr(df_weo_g7, ..1, ..2, ..3, ..4, R = 23)
     )
   ) %>%
   pull(results) %>%
@@ -157,7 +157,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2025, forecast_year>=2001, horizon==0.5)
 
 #summary of scores
 #coverage summary
@@ -179,8 +179,8 @@ write.csv(pred_weo_eval, paste0(
 
 #find best rolling window size 
 best_wis_sum <- Inf
-best_R <- 10
-for(R in 10:20){
+best_R <- 11
+for(R in 11:25){
   pred_weo <- grid_weo %>% 
     mutate(
       results = pmap(
@@ -194,7 +194,7 @@ for(R in 10:20){
   pred_weo <- pred_weo %>% is_covered() %>% calc_IS_of_df() 
   
   wis_sum <- pred_weo %>% 
-    filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5) %>% 
+    filter(forecast_year<=2025, forecast_year>=2001, horizon==0.5) %>% 
     summarise_eval() %>%
     pull(WIS_all) %>% sum()
   
@@ -204,6 +204,5 @@ for(R in 10:20){
   }
 }
 
-#found best R to be 22 
-pred_weo %>% filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5) %>% 
-  summarise_eval()
+#found best R to be 23 
+
