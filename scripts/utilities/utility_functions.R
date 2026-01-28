@@ -548,17 +548,14 @@ unconditional_quantiles <- function(obs, tau, n_ahead = 4) {
 
 
 #'fit quantile autoregressive model QAR(p) and return fit (observation based)
-#'@description
-#'function fits three quantile autoregressive QAR(p) models on given observations based on given
-#'level tau and returns fitted models with quantiles q_1 = (1-tau)/2; q_2 = =(1+tau)/2 and q_3 = 0.5
 #'
 #'@note 
 #'@param obs numeric vector of observations
 #'@param tau numeric value of tau
 #'@param nlag numeric value for nlag=p of QAR(p) model; default p=1 
 #'
-#' }
-fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05), nlag=1) {
+#' 
+fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag=1) {
   #check if library installed and loaded
   if (!requireNamespace("quantreg", quietly = TRUE)) {
     stop("Package 'quantreg' is required but not installed.")
@@ -630,7 +627,7 @@ fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05), nlag=1) {
   return(pred_quantiles)
 }
 
-
+test <- fit_qar(rnorm(100), last_obs = rnorm(1,0,1), tau = seq(0.05,0.95,0.05), nlag = 1)
 
 # ---------------------------
 ## data transformation/ correction

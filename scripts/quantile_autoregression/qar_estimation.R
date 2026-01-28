@@ -23,7 +23,7 @@ df_weo <- load_and_prepare_WEO_data()
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #
-fit_qar_on_oecd <- function(df, country, tau = seq(0.1, 0.9, 0.1), target, nlag=1, R=11, n_ahead=4){
+fit_qar_on <- function(df, country, target, h, tau = seq(0.1, 0.9, 0.1), nlag=1, R=11, n_ahead=1){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -32,123 +32,25 @@ fit_qar_on_oecd <- function(df, country, tau = seq(0.1, 0.9, 0.1), target, nlag=
   out_list <- list()
   index <- 1
   
-  #group data by country
-  data_by_country <- df %>% 
-    filter(country == !!country) %>%
-    arrange(forecast_year, forecast_quarter)
-  
-  for(i in seq(R,nrow(data_by_country))){
-    data <- data_by_country[(i-R+1):i,][[paste0("tv_",target)]]
-    
-    #start and end date of rolling window 
-    end_year <- as.numeric(data_by_country[i,"forecast_year"])
-    start_year <- as.numeric(data_by_country[i-R+1,"forecast_year"])
-    end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
-    start_quarter <- as.numeric(data_by_country[i-R+1,"forecast_quarter"])
-    
-    #skip if only NAs
-    if(all(is.na(data)) || is.null(data)){
-      message("no valid data for ", country, " between ", start_year, " and ", end_year)
-      next
-    }
-
-    #fit QAR model
-    fits <- tryCatch({
-      fit_qar(data, tau, nlag = !!nlag)
-    },error=function(e){
-      message("fit failed ", e$message)
-      NULL
-    })
-    
-    #null check fits
-    if(is.null(fits)){
-      next
-    }
-    
-    #extract fitted models for lower bound (l), upper bound (u) and median (m)
-    fit_l <- fits$fit_l
-    fit_m <- fits$fit_m
-    fit_u <- fits$fit_u
-    
-    #quantile forecast for n_ahead quarters
-    last_lags <- tail(data, nlag)
-    preds <- tryCatch({
-      predict_qar(last_lags, fit_l = fit_l, fit_m = fit_m, fit_u = fit_u, n_ahead = n_ahead)
-      },error=function(e){
-        message("prediction failed ", e$message)
-        NULL
-      })
-    
-    #null check predictions
-    if(is.null(preds)){
-      next
-    }
-    
-    #extract predicted lower and upper bounds
-    preds_l <- preds$pred_l
-    preds_u <- preds$pred_u
-    
-    # horizons (quarterly)
-    h_steps <- 1:n_ahead
-    horizons <- h_steps / 4
-    
-    # target quarter and year vectors based on n_ahead forecasts
-    tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
-    ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
-    
-    # truth values
-    truth_values <- sapply(i + h_steps, function(idx) {
-      if (idx <= nrow(data_by_country)){
-        data_by_country[[paste0("tv_",target)]][idx] 
-      }else{
-        NA
-      }   
-    })
-    
-    # build all rows at once
-    out_list[[index]] <- new_pred_row(
-      country = rep(country,n_ahead),
-      forecast_year = rep(end_year,n_ahead),
-      target_year = ty,
-      target_quarter = tq,
-      horizon = horizons,
-      target = rep(target,n_ahead),
-      tau = rep(tau,n_ahead),
-      lower_bound = preds_l,
-      upper_bound = preds_u,
-      truth_value = truth_values,
-    )
-    
-    index <- index + 1
-    
-  }
-  predictions <- bind_rows(out_list)
-  return(predictions)
-}
-
-
-fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
-  
-  #prediction dataframe
-  predictions <- init_output_df()
-  
-  #output list 
-  out_list <- list()
-  index <- 1
+  #lower and upper quantile level
+  tau <- sort(tau)
+  tau_lower <- (1 - tau) / 2
+  tau_upper <- (1 + tau) / 2
+  tau_all <- sort(unique(c(tau_lower, tau_upper)))
   
   #group data by country
   data_by_country <- df %>% 
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country))){
-    data <- data_by_country[(i-R+1):i,][[paste0("tv_",target)]]
+  for(i in seq(2,nrow(data_by_country)-1)){
+    data <- data_by_country[1:i,][[paste0("tv_",target)]]
     
     #start and end date of rolling window 
     end_year <- as.numeric(data_by_country[i,"forecast_year"])
-    start_year <- as.numeric(data_by_country[i-R+1,"forecast_year"])
+    start_year <- as.numeric(data_by_country[1,"forecast_year"])
     end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
-    start_quarter <- as.numeric(data_by_country[i-R+1,"forecast_quarter"])
+    start_quarter <- as.numeric(data_by_country[1,"forecast_quarter"])
     
     #skip if only NAs
     if(all(is.na(data)) || is.null(data)){
@@ -156,9 +58,12 @@ fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
       next
     }
     
+    #lagged values of i+1
+    last_lags <- tail(data, nlag)
+    
     #fit QAR model
     fits <- tryCatch({
-      fit_qar(data, tau, nlag = !!nlag)
+      fit_qar(obs = data, last_obs = last_lags, tau = tau_all, nlag = nlag)
     },error=function(e){
       message("fit failed ", e$message)
       NULL
@@ -169,115 +74,39 @@ fit_qar_on_weo <- function(df, country, tau, target, h, nlag=1, R=11){
       next
     }
     
-    #extract fitted models for lower bound (l), upper bound (u) and median (m)
-    fit_l <- fits$fit_l
-    fit_m <- fits$fit_m
-    fit_u <- fits$fit_u
-    
-    #quantile forecast for n_ahead quarters
-    last_lags <- tail(data, nlag)
-    preds <- tryCatch({
-      predict_qar(last_lags, fit_l = fit_l, fit_m = fit_m, fit_u = fit_u, n_ahead = 1)
-    },error=function(e){
-      message("prediction failed ", e$message)
-      NULL
-    })
-    
-    #null check predictions
-    if(is.null(preds)){
-      next
+
+    for(j in seq_along(tau)){
+      lower_bound <- fits[length(tau_all) / 2 - j + 1]
+      upper_bound <- fits[length(tau_all) / 2 + j]
+      
+      # truth values
+      truth_value <- data_by_country[i+1,][[paste0("tv_",target)]]
+      forecast_year_1 <- as.numeric(data_by_country[i+1,"forecast_year"])
+      forecast_quarter_1 <- as.numeric(data_by_country[i+1,"forecast_quarter"])
+      target_year_1 <- as.numeric(data_by_country[i+1,"target_year"])
+      
+      # build all rows at once
+      out_list[[index]] <- new_pred_row(
+        country = country,
+        forecast_year = forecast_year_1,
+        forecast_quarter = forecast_quarter_1,
+        target_year = target_year_1,
+        horizon = h,
+        target = target,
+        tau = tau[j],
+        lower_bound = lower_bound,
+        upper_bound = upper_bound,
+        truth_value = truth_value,
+      )
+      
+      index <- index + 1
     }
-    
-    #extract predicted lower and upper bounds
-    preds_l <- preds$pred_l
-    preds_u <- preds$pred_u
-    
-    # target quarter and year vectors based on  forecasts
-    tq <- (end_quarter + 4 * (h - floor(h)) - 1) %% 4 + 1
-    ty <- as.numeric(data_by_country[i,"target_year"])
-    
-    # truth values
-    truth_value <- if (i+1 <= nrow(data_by_country)){
-      data_by_country[[paste0("tv_",target)]][i+1] 
-    }else{
-      NA
-    } 
-    
-    # build all rows at once
-    out_list[[index]] <- new_pred_row(
-      country = country,
-      forecast_year = end_year,
-      target_year = ty,
-      target_quarter = tq,
-      horizon = h,
-      target = target,
-      tau = tau,
-      lower_bound = preds_l,
-      upper_bound = preds_u,
-      truth_value = truth_value,
-    )
-    
-    index <- index + 1
     
   }
   predictions <- bind_rows(out_list)
   return(predictions)
 }
 
-#=================
-#prediction on quarterly data (OECD dataset)
-#=================
-
-#create grid 
-grid <- crossing(
-  country = unique(df_oecd$country),
-  tau = seq(0.1, 0.9, 0.1),
-  target = c("gdp", "cpi")
-)
-
-#predict intervals for all combinations 
-pred_oecd <- grid %>% 
-  mutate(
-    results = pmap(
-      list(country, tau, target),
-      ~ fit_qar_on_oecd(df_oecd, ..1, ..2, ..3)
-    )
-  ) %>%
-  pull(results) %>%
-  bind_rows()
-
-#aggregation to annual values
-pred_oecd <- pred_oecd %>% aggregate_to_annual()
-
-#truth value within predicted interval?
-pred_oecd <- is_covered(pred_oecd)
-
-#interval scores
-pred_oecd <- calc_IS_of_df(pred_oecd)
-
-#check calibration by calculating coverage for all prediction intervals, 
-#forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
-
-#filter prediction dataframe for specific horizon and period
-pred_oecd_filtered <- pred_oecd %>% 
-  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
-
-#summary of scores
-#coverage summary
-#Interval score summary
-#Weighted interval score summary for 50% and 80% intervals and 10%...90%
-(pred_oecd_eval <- pred_oecd_filtered %>% 
-    summarise_eval())
-
-#save prediction dataframe
-timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
-write.csv(pred_oecd, paste0("results/qar_estimation/qar_prediction_oecd_", timestamp, ".csv"), 
-          row.names = FALSE)
-
-write.csv(pred_oecd_eval, paste0(
-  "results/qar_estimation/qar_prediction_oecd_eval_", 
-  timestamp, ".csv"), row.names = FALSE)
 
 
 #=================
@@ -287,17 +116,16 @@ write.csv(pred_oecd_eval, paste0(
 #create grid 
 grid_weo <- crossing(
   country = unique(df_weo_g7$country),
-  tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = 1.0
 )
 
 #predict intervals for all combinations 
 pred_weo <- grid_weo %>% 
   mutate(
     results = pmap(
-      list(country, tau, target, horizon),
-      ~ fit_qar_on_weo(df_weo_g7, ..1, ..2, ..3, ..4)
+      list(country, target, horizon),
+      ~ fit_qar_on(df_weo_g7, ..1, ..2, ..3)
     )
   ) %>%
   pull(results) %>%
@@ -317,7 +145,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
+  filter(forecast_year>=2001, forecast_year<=2012)
 
 #summary of scores
 #coverage summary
