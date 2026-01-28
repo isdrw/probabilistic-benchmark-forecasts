@@ -23,7 +23,7 @@ df_weo <- load_and_prepare_WEO_data()
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #
-fit_qar_on_oecd <- function(df, country, tau, target, nlag=1, R=44, n_ahead=4){
+fit_qar_on_oecd <- function(df, country, tau = seq(0.1, 0.9, 0.1), target, nlag=1, R=11, n_ahead=4){
   
   #prediction dataframe
   predictions <- init_output_df()

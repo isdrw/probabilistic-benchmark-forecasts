@@ -79,7 +79,7 @@ calc_IS_of_df <- function(df){
 #'@param df prediction dataframe
 summarise_IS_of_df <- function(df){
   df %>% 
-    group_by(target, tau) %>%
+    group_by(target, horizon, tau) %>%
     summarise(
       mean_IS = round(mean(IS, na.rm = TRUE),6),
       .groups = "drop"
@@ -212,7 +212,7 @@ calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
 summarise_WIS_of_df <- function(df){
   #WIS for 50% and 80% intervals per target
   WIS_58 <- df %>%
-    group_by(target) %>%
+    group_by(target, horizon) %>%
     group_modify(~{
       wis_vec <- calc_WIS_of_df(.x, taus = c(0.5, 0.8))
       tibble(WIS_58 = round(mean(as.numeric(wis_vec), na.rm = TRUE), 5))
@@ -220,14 +220,14 @@ summarise_WIS_of_df <- function(df){
   
   #WIS for 10% ... 90% intervals per target
   WIS_all <- df %>%
-    group_by(target) %>%
+    group_by(target, horizon) %>%
     group_modify(~{
       wis_vec <- calc_WIS_of_df(.x, taus = seq(0.1, 0.9, 0.1))
       tibble(WIS_all = round(mean(as.numeric(wis_vec), na.rm = TRUE), 5))
     })
   
   #Combine into one tibble
-  result <- left_join(WIS_58, WIS_all, by = "target")
+  result <- left_join(WIS_58, WIS_all, by = c("target", "horizon"))
   
   return(result)
 }
@@ -244,7 +244,7 @@ is_covered <- function(df){
 
 summarise_coverage_of_df <- function(df){
   df %>% 
-    group_by(target, tau) %>%
+    group_by(target, horizon, tau) %>%
     summarise(
       coverage = round(mean(covered, na.rm = TRUE),6),
       .groups = "drop"
@@ -267,8 +267,8 @@ summarise_eval <- function(df){
   
   #combine results into one dataframe
   summary_df <- coverage_df %>%
-    dplyr::left_join(IS_df, by = c("target", "tau")) %>% 
-    dplyr::left_join(WIS_df, by = c("target"))
+    dplyr::left_join(IS_df, by = c("target", "horizon", "tau")) %>% 
+    dplyr::left_join(WIS_df, by = c("target", "horizon"))
   
   return(summary_df)
 }
@@ -552,21 +552,20 @@ unconditional_quantiles <- function(obs, tau, n_ahead = 4) {
 #'function fits three quantile autoregressive QAR(p) models on given observations based on given
 #'level tau and returns fitted models with quantiles q_1 = (1-tau)/2; q_2 = =(1+tau)/2 and q_3 = 0.5
 #'
+#'@note 
 #'@param obs numeric vector of observations
 #'@param tau numeric value of tau
 #'@param nlag numeric value for nlag=p of QAR(p) model; default p=1 
 #'
-#'@return fitted models for lower bound, upper bound and median 
-#'\describe{
-#'   \item{fit_l}{Lower bound QAR fit}
-#'   \item{fit_u}{Upper bound QAR fit}
-#'   \item{fit_m}{Median QAR fit}
 #' }
-fit_qar <- function(obs, tau, nlag=1) {
+fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05), nlag=1) {
   #check if library installed and loaded
   if (!requireNamespace("quantreg", quietly = TRUE)) {
     stop("Package 'quantreg' is required but not installed.")
   }
+  if (!requireNamespace("dplyr", quietly = TRUE)){
+    stop("Package 'dplyr' is required but not installed.")
+  } 
   
   #check for sufficient length of obs
   if (length(obs) < nlag + 2) {
@@ -590,74 +589,24 @@ fit_qar <- function(obs, tau, nlag=1) {
   #remove NAs
   data_reg <- stats::na.omit(data_reg)
   
+  #sort tau 
+  tau <- sort(unique(tau))
+  
   #check for non empty dataframe
   if (nrow(data_reg) == 0) {
     warning("No valid rows after lagging & removing NA.")
     return(NULL)
   }
   
-  #lower quantile
-  fit_l <- tryCatch({
-    quantreg::rq(formula = y ~ ., tau = (1-tau)/2, data = data_reg)
+  fit <- tryCatch({
+    quantreg::rq(formula = y ~ ., tau = tau, data = data_reg)
   },error=function(e){
-    message("lower QAR fit failed ", e$message)
+    message("QAR fit failed ", e$message)
     NULL
   })
   
-  #median for prediction 
-  fit_m <- tryCatch({
-    quantreg::rq(formula = y ~ ., tau = 0.5, data = data_reg)
-  },error=function(e){
-    message("median QAR fit failed ", e$message)
-    NULL
-  })
-  
-  fit_u <- tryCatch({
-    quantreg::rq(formula = y ~ ., tau = (1+tau)/2, data = data_reg)
-  },error=function(e){
-    message("upper QAR fit failed ", e$message)
-    NULL
-  })
-  
-  return(list(
-    fit_l = fit_l, 
-    fit_u = fit_u, 
-    fit_m = fit_m
-  ))
-}
-
-
-
-#'predict quantile of fitted autoregressive models QAR(p) (observation based)
-#'@description
-#'function predicts quantiles of given fitted models for n steps ahead. For multiple predictions
-#'median prediction is used as a new point prediction
-#'
-#'@param last_obs numeric vector of last observations (must be length of nlag of fitted models)
-#'for nlag=2 must include obs_(t-1) and obs_(t-2)
-#'@param fit_l lm object lower bound QAR fit 
-#'@param fit_m lm object median QAR fit 
-#'@param fit_u lm object upper bound QAR fit 
-#'@param n_ahead numeric value for number of predicted values default=4 (for quarterly data)
-#'
-#'@note
-#'models must be of same order; observation vector must contain last value/values
-#'including respective lagged values; obs vector must be length of nlag of fitted models
-#'
-#'@return fitted models for lower bound, upper bound and median 
-#'\describe{
-#'   \item{pred_l}{Lower bound predictions}
-#'   \item{pred_u}{Upper bound predictions}
-#'   \item{pred_m}{Median QAR predictions}
-#' }
-predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
-
-  if (is.null(fit_l) || is.null(fit_m) || is.null(fit_u)) {
-    stop("All fit_l, fit_m, and fit_u must be non-null fitted QAR models.")
-  }
-  
-  #order of models 
-  nlag <- length(coef(fit_l))-1
+  #==================================================
+  #prediction
   
   # convert to numeric lag vector
   last_obs <- as.numeric(last_obs)
@@ -666,110 +615,59 @@ predict_qar <- function(last_obs, fit_l, fit_m, fit_u, n_ahead=4) {
     stop("last_obs must have length equal to nlag used in model fitting.")
   }
   
-  #prediction vectors
-  pred_l <- numeric(n_ahead)
-  pred_m <- numeric(n_ahead)
-  pred_u <- numeric(n_ahead)
+  #prediction vector
+  pred_quantiles <- numeric(length(tau))
   
   # current lag state
   lag_vec <- last_obs
+  new_data <- as.data.frame(t(lag_vec))
+  names(new_data) <- paste0("lag_", 1:nlag)
   
-  for (h in 1:n_ahead) {
-    
-    #construct dataframe for prediction: one row, named lag_1, lag_2, ...
-    new_data <- as.data.frame(t(lag_vec))
-    names(new_data) <- paste0("lag_", 1:nlag)
-    
-    #predict lower, median, upper quantile
-    pred_l[h] <- as.numeric(predict(fit_l, newdata = new_data))
-    pred_m[h] <- as.numeric(predict(fit_m, newdata = new_data))
-    pred_u[h] <- as.numeric(predict(fit_u, newdata = new_data))
-    
-    #update lag vector: recursive --> median prediction becomes new first lag
-    lag_vec <- c(pred_m[h], head(lag_vec, nlag - 1))
-  }
+  pred_quantiles <- as.numeric(predict(fit, newdata = new_data))
   
-  return(list(
-    pred_l = pred_l,
-    pred_m = pred_m,
-    pred_u = pred_u
-  ))
+  #ensure monotonicity by sorting quantiles
+  pred_quantiles <- sort(pred_quantiles)
+  return(pred_quantiles)
 }
+
+
 
 # ---------------------------
 ## data transformation/ correction
 # ---------------------------
 
-#'function applies pava-type algorithm on x
-#'@desctiption function replaces points that violate isotonicity 
-#'with their pairwise mean and repeats until no violations are found within given tolerance;
-#'This approach will lead to same weights within groups of violations, 
-#'i.e. group x_i,...,x_i+h violate isotonicity will all be replaced with roughly
-#'1/h * sum(x_i,...,x_i+h)
-#'
-#'@note function not suitable for large amount of data
-#'@param x numeric vector of data
-#'@param increasing boolean, TRUE --> x_i <= x_i+1, FALSE --> x_i >= x_i+1
-#'@param tolerance numeric value of tolerance to which comparison will be evaluated
 
-pava_correction <- function(x, increasing=TRUE, tolerance=1e-12){
-  na_idx <- is.na(x)
-  x_clean <- x[!na_idx]
-  n <- length(x_clean)
-  
-  if(n <= 1){
-    return(x)
-  }
-  
-  repeat{
-    violations_found <- FALSE
-    for(i in seq_len(n-1)){
-      #increasing order
-      if(increasing && (x_clean[i] - x_clean[i+1] > tolerance)){
-        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
-        violations_found <- TRUE
-      }  
-      #decreasing order 
-      if(!increasing && (x_clean[i+1] - x_clean[i] > tolerance)){
-        x_clean[c(i,i+1)] <- mean(c(x_clean[i],x_clean[i+1]))
-        violations_found <- TRUE
-      }
-      
-    }
-    if(violations_found == FALSE){
-      break
-    }
-  }
-  x_out <- x
-  x_out[!na_idx] <- x_clean
-  
-  return(x_out)
-}
-
-
-#'function applies PAVA algorithm on interval bounds of prediction dataframe
+#'function applies Pool Adjacent Violators Algorithm (PAVA) on intervals from each horizon
+#' and ensures isotonicity over all horizons
 #'
-#'@note prediction dataframe must contain columns country, target, forecast_year, 
-#'tau, lower_bound, upper_bound, prediction
+#'@note requires library "isotone" and "dplyr"
 #'
-#'@param df prediction dataframe
+#'@param df prediction dataframe. Must contain columns country, target, tau, 
+#'target_year, target_quarter, horizon, lower_bound, upper_bound
 pava_correct_df <- function(df){
+  
   df %>% 
-    group_by(country, target, forecast_year, tau) %>%
-    group_modify(~{
-      #pava corrections for interval widths over all horizons
-      interval_widths <- .x$prediction - .x$lower_bound
-      interval_widths <- pava_correction(interval_widths)
+    #interval lengths and midpoints
+    dplyr::mutate(
+      W = upper_bound - lower_bound,
+      M = (upper_bound + lower_bound) / 2
+    ) %>%
+    dplyr::group_by(country, target, tau, target_year, target_quarter) %>%
+    dplyr::arrange(suppressWarnings(as.numeric(horizon)), .by_group = TRUE) %>%
+    dplyr::group_modify(~{
       
-      #update bounds
-      .x$lower_bound <- .x$prediction - interval_widths
-      .x$upper_bound <- .x$prediction + interval_widths
+      #pava correction of intervals
+      W_isotonic <- isotone::gpava(z = 1:nrow(.x), y = .x$W)$x
       
-      .x
-    }) %>% ungroup()
+      #recalculate bounds
+      .x$lower_bound <- .x$M - W_isotonic / 2
+      .x$upper_bound <- .x$M + W_isotonic / 2
+      
+      dplyr::select(.x,-M,-W)
+    }) %>%
+    dplyr::ungroup()
+    
 }
-
-
 
 #'function calculates value of check loss function from residual u and quantile level tau
 #'
@@ -780,6 +678,19 @@ check_loss <- function(u, tau){
 }
 
 
+#'function aggregates quarterly input dataframe to annual values
+#'
+#'@description
+#'7  quarters with weights 0.25, 0.5, 0.75, 1.0, 0.75, 0.5, 0.25 (sum = 4) 
+#'are summed to annual growth rate. The quarterly values must be quarter on quarter growth
+#'rates (in percent). The output is an annual growth rate (in percent)
+#'Example: Q2 - Q4 of 1999 and Q1 - Q4 of 2000 are aggregated to the annual growth rate of 
+#'2000. 
+#'
+#'#'@note requires library dplyr
+#'
+#'@param df input dataframe (from TS predictions). Must contain columns target_year, target_quarter
+#'forecast_year, forecast_quarter, country, horizon, pred_cpi, pred_gdp, tv_cpi, tv_gdp 
 aggregate_to_annual_input <- function(df){
   
   #triangular weights

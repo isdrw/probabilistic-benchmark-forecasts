@@ -5,7 +5,6 @@ gc()
 library(arrow)
 library(dplyr)
 library(tidyr)
-library(nortest)
 library(fitdistrplus)
 library(forecast)
 library(quantreg)
@@ -138,7 +137,7 @@ grid_weo <- crossing(
   country = unique(df_weo_g7$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 #predict intervals for all combinations 
@@ -157,7 +156,7 @@ grid_rw  <- crossing(
   country = unique(df_rw$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_rw <- grid_rw %>% 
@@ -175,7 +174,7 @@ grid_ar1  <- crossing(
   country = unique(df_ar1$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_ar1 <- grid_ar1 %>% 
@@ -193,7 +192,7 @@ grid_arima1_1_0  <- crossing(
   country = unique(df_arima1_1_0$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_arima1_1_0 <- grid_arima1_1_0 %>% 
@@ -212,7 +211,7 @@ grid_arima_auto  <- crossing(
   country = unique(df_arima_auto$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_arima_auto <- grid_arima_auto %>% 
@@ -243,7 +242,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -251,6 +250,8 @@ pred_weo_filtered <- pred_weo %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
+
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -280,7 +281,7 @@ pred_rw <- calc_IS_of_df(pred_rw)
 
 #filter prediction dataframe for specific horizon and period
 pred_rw_filtered <- pred_rw %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -317,7 +318,7 @@ pred_ar1 <- calc_IS_of_df(pred_ar1)
 
 #filter prediction dataframe for specific horizon and period
 pred_ar1_filtered <- pred_ar1 %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -354,7 +355,7 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 
 #filter prediction dataframe for specific horizon and period
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -391,7 +392,7 @@ pred_arima_auto <- calc_IS_of_df(pred_arima_auto)
 
 #filter prediction dataframe for specific horizon and period
 pred_arima_auto_filtered <- pred_arima_auto %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
