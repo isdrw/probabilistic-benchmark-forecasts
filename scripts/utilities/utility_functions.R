@@ -627,7 +627,6 @@ fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag=1) {
   return(pred_quantiles)
 }
 
-test <- fit_qar(rnorm(100), last_obs = rnorm(1,0,1), tau = seq(0.05,0.95,0.05), nlag = 1)
 
 # ---------------------------
 ## data transformation/ correction
@@ -653,8 +652,12 @@ pava_correct_df <- function(df){
     dplyr::arrange(suppressWarnings(as.numeric(horizon)), .by_group = TRUE) %>%
     dplyr::group_modify(~{
       
+      valid <- !is.na(.x$W) & !is.na(.x$M)
+      
+      W_isotonic <- rep(NA_real_, nrow(.x))
+      
       #pava correction of intervals
-      W_isotonic <- isotone::gpava(z = 1:nrow(.x), y = .x$W)$x
+      W_isotonic[valid] <- as.numeric(isotone::gpava(z = seq_len(sum(valid)), y = .x$W[valid])$x)
       
       #recalculate bounds
       .x$lower_bound <- .x$M - W_isotonic / 2
@@ -690,49 +693,57 @@ check_loss <- function(u, tau){
 #'forecast_year, forecast_quarter, country, horizon, pred_cpi, pred_gdp, tv_cpi, tv_gdp 
 aggregate_to_annual_input <- function(df){
   
-  #triangular weights
+  # triangular weights
   weights <- as.numeric((1 - abs(4 - 1:7) / 4))
   
-  df %>% 
-    #index for combination of target_year and target_quarter
+  # detect available columns
+  has_pred <- all(c("pred_cpi", "pred_gdp") %in% names(df))
+  has_target <- all(c("target_year", "target_quarter") %in% names(df))
+  has_horizon <- "horizon" %in% names(df)
+  
+  out <- df %>%
     dplyr::mutate(
+      target_year = if(!has_target) forecast_year else target_year,
+      target_quarter = if(!has_target) forecast_quarter else target_quarter,
+      horizon = if(!has_horizon) NA_integer_ else horizon,
       tq_index = 4 * target_year + target_quarter
     ) %>%
-    
     dplyr::group_by(country, horizon) %>%
-    
     dplyr::group_modify(~{
       
-      #target years of group
       target_years <- sort(unique(.x$target_year))
-      
       out_list <- list()
       
       for(t in target_years){
-        #from Q2 in year t-1 to Q4 in year t
-        required_index <- (4 * (t-1) + 2):(4 * t + 4)
         
-        #window for aggregation 
-        window <- .x %>% 
-          filter(tq_index %in% required_index) %>%
-          arrange(tq_index)
+        required_index <- (4 * (t - 1) + 2):(4 * t + 4)
         
-        #return empty tibble in case of insufficient amount of predicted quarters
+        window <- .x %>%
+          dplyr::filter(tq_index %in% required_index) %>%
+          dplyr::arrange(tq_index)
+        
         if(nrow(window) != 7){
           next
         }
         
-        #convert to log growth
-        log_pred_cpi <- log1p(window$pred_cpi / 100) 
-        log_pred_gdp <- log1p(window$pred_gdp / 100)
+        #aggregation of truth values
         log_tv_cpi <- log1p(window$tv_cpi / 100)
         log_tv_gdp <- log1p(window$tv_gdp / 100)
         
-        #temporal aggregation of quarterly lower, upper bound and truth value
-        pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
-        pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
         tv_cpi_annual <- 100 * sum(weights * log_tv_cpi)
         tv_gdp_annual <- 100 * sum(weights * log_tv_gdp)
+        
+        #aggregation of preds 
+        if(has_pred){
+          log_pred_cpi <- log1p(window$pred_cpi / 100)
+          log_pred_gdp <- log1p(window$pred_gdp / 100)
+          
+          pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
+          pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
+        } else {
+          pred_cpi_annual <- NA_real_
+          pred_gdp_annual <- NA_real_
+        }
         
         out_list[[as.character(t)]] <- tibble(
           country = window$country[1],
@@ -748,12 +759,26 @@ aggregate_to_annual_input <- function(df){
         )
       }
       
-      bind_rows(out_list)
-      
-    }) %>% 
-    
-    dplyr::ungroup() 
+      dplyr::bind_rows(out_list)
+    }) %>%
+    dplyr::ungroup()
+  
+  #deselect prediction related columns in case of observation only dataframe
+  if(!has_pred){
+    out <- out %>%
+      dplyr::select(
+        -pred_cpi,
+        -pred_gdp,
+        -target_year,
+        -target_quarter,
+        -horizon
+      )
+  }
+  
+  out
 }
+
+
 
 
 # ---------------------------
@@ -1175,7 +1200,7 @@ fit_easyUQ <- function(x, y, tau, x_new){
   ))
 }
 
-fit_easyUQ <- function(x, y, tau = 0.8, x_new) {
+'fit_easyUQ <- function(x, y, tau = 0.8, x_new) {
   # Remove NAs
   valid <- !(is.na(x) | is.na(y))
   x <- x[valid]
@@ -1221,5 +1246,6 @@ fit_easyUQ <- function(x, y, tau = 0.8, x_new) {
     NULL
   })
 }
+'
 
 

@@ -148,7 +148,7 @@ grid_weo <- crossing(
   country = unique(df_weo_g7$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 #predict intervals for all combinations 
@@ -167,7 +167,7 @@ grid_rw  <- crossing(
   country = unique(df_rw$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_rw <- grid_rw %>% 
@@ -185,7 +185,7 @@ grid_ar1  <- crossing(
   country = unique(df_ar1$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_ar1 <- grid_ar1 %>% 
@@ -203,7 +203,7 @@ grid_arima1_1_0  <- crossing(
   country = unique(df_arima1_1_0$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_arima1_1_0 <- grid_arima1_1_0 %>% 
@@ -219,6 +219,9 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
 #==============================================================================
 ##Evaluation of prediction on dataset WEO (annual)
 
+#PAVA correction
+pred_weo <- pava_correct_df(pred_weo)
+
 #truth value within predicted interval?
 pred_weo <- is_covered(pred_weo)
 
@@ -231,7 +234,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -239,6 +242,8 @@ pred_weo_filtered <- pred_weo %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
+
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -253,6 +258,9 @@ write.csv(pred_weo_eval, paste0(
 #==============================================================================
 ##Evaluation of prediction on dataset Random Walk (quarterly, generated)
 
+#PAVA correction
+pred_rw <- pava_correct_df(pred_rw)
+
 #truth value within predicted interval?
 pred_rw <- is_covered(pred_rw)
 
@@ -265,7 +273,7 @@ pred_rw <- calc_IS_of_df(pred_rw)
 
 #filter prediction dataframe for specific horizon and period
 pred_rw_filtered <- pred_rw %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -273,6 +281,8 @@ pred_rw_filtered <- pred_rw %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
+
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -287,6 +297,9 @@ write.csv(pred_rw_eval, paste0(
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,0,0) (quarterly, generated)
 
+#PAVA correction
+pred_ar1 <- pava_correct_df(pred_ar1)
+
 #truth value within predicted interval?
 pred_ar1 <- is_covered(pred_ar1)
 
@@ -299,7 +312,7 @@ pred_ar1 <- calc_IS_of_df(pred_ar1)
 
 #filter prediction dataframe for specific horizon and period
 pred_ar1_filtered <- pred_ar1 %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -307,6 +320,8 @@ pred_ar1_filtered <- pred_ar1 %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
+
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -321,6 +336,9 @@ write.csv(pred_ar1_eval, paste0(
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
 
+#PAVA correction
+pred_arima1_1_0 <- pava_correct_df(pred_arima1_1_0)
+
 #truth value within predicted interval?
 pred_arima1_1_0 <- is_covered(pred_arima1_1_0)
 
@@ -333,7 +351,7 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 
 #filter prediction dataframe for specific horizon and period
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
-  filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2012, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -342,6 +360,7 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
     summarise_eval())
 
+pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

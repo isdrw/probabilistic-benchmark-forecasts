@@ -15,7 +15,8 @@ source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare data from file "data/raw/IMF WEO\oecd_quarterly_data.csv"
-df_oecd <- load_and_prepare_oecd_data()
+df_oecd <- load_and_prepare_oecd_data() %>% 
+  aggregate_to_annual_input() 
 
 #load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
 df_weo <- load_and_prepare_WEO_data()
@@ -83,14 +84,13 @@ fit_qar_on <- function(df, country, target, h, tau = seq(0.1, 0.9, 0.1), nlag=1,
       truth_value <- data_by_country[i+1,][[paste0("tv_",target)]]
       forecast_year_1 <- as.numeric(data_by_country[i+1,"forecast_year"])
       forecast_quarter_1 <- as.numeric(data_by_country[i+1,"forecast_quarter"])
-      target_year_1 <- as.numeric(data_by_country[i+1,"target_year"])
       
       # build all rows at once
       out_list[[index]] <- new_pred_row(
         country = country,
         forecast_year = forecast_year_1,
         forecast_quarter = forecast_quarter_1,
-        target_year = target_year_1,
+        target_year = NA,
         horizon = h,
         target = target,
         tau = tau[j],

@@ -9,6 +9,7 @@ library(forecast)
 library(purrr)
 library(Matrix)
 library(osqp)
+library(isodistrreg)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
@@ -42,12 +43,12 @@ fit_easyUQ_idr <- function(df, country, tau, target, h, R = 11){
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country)-1)){
+  for(i in seq(2,nrow(data_by_country)-1)){
     #predicted value vector
-    pred_vec <- data_by_country[(i-R+1):i,][[paste0("pred_", target)]]
+    pred_vec <- data_by_country[1:i,][[paste0("pred_", target)]]
     
     #truth value vector
-    data_tv1 <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
+    data_tv1 <- data_by_country[1:i,][[paste0("tv_", target)]]
     
     #last prediction, truth value of point after current window
     last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
@@ -128,7 +129,7 @@ grid_weo <- crossing(
   country = unique(df_weo_g7$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 #predict intervals for all combinations 
@@ -142,8 +143,11 @@ pred_weo <- grid_weo %>%
   pull(results) %>%
   bind_rows()
 
-
+#============================================================
 ##Evaluation of prediction on dataset WEO (annual)
+
+#PAVA correction
+pred_weo <- pava_correct_df(pred_weo)
 
 #truth value within predicted interval?
 pred_weo <- is_covered(pred_weo)
@@ -157,7 +161,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year<=2025, forecast_year>=2001, horizon==0.5)
+  filter(forecast_year<=2025, forecast_year>=2001)
 
 #summary of scores
 #coverage summary
@@ -165,6 +169,8 @@ pred_weo_filtered <- pred_weo %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
+
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

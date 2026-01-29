@@ -151,7 +151,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = FALSE)
+      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -214,6 +214,9 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
 #==============================================================================
 ##Evaluation of prediction on dataset WEO (annual)
 
+#PAVA correction 
+pred_weo <- pava_correct_df(pred_weo)
+
 #truth value within predicted interval?
 pred_weo <- is_covered(pred_weo)
 
@@ -235,20 +238,23 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
-pred_weo_eval %>% print(n = Inf)
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_", 
+  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_weo_eval_", 
+  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset Random Walk (quarterly, generated)
+
+#PAVA correction 
+pred_rw <- pava_correct_df(pred_rw)
 
 #truth value within predicted interval?
 pred_rw <- is_covered(pred_rw)
@@ -271,6 +277,8 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
@@ -283,6 +291,9 @@ write.csv(pred_rw_eval, paste0(
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,0,0) (quarterly, generated)
+
+#PAVA correction 
+pred_ar1 <- pava_correct_df(pred_ar1)
 
 #truth value within predicted interval?
 pred_ar1 <- is_covered(pred_ar1)
@@ -305,6 +316,8 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
@@ -317,6 +330,9 @@ write.csv(pred_ar1_eval, paste0(
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
+
+#PAVA correction 
+pred_arima1_1_0 <- pava_correct_df(pred_arima1_1_0)
 
 #truth value within predicted interval?
 pred_arima1_1_0 <- is_covered(pred_arima1_1_0)
@@ -332,6 +348,7 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
   filter(forecast_year<=2012, forecast_year>=2001)
 
+
 #summary of scores
 #coverage summary
 #Interval score summary
@@ -339,6 +356,7 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
   summarise_eval())
 
+pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
