@@ -288,6 +288,8 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(

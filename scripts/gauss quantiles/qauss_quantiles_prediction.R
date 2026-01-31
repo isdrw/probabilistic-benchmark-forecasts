@@ -169,7 +169,7 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_gauss(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -282,11 +282,11 @@ pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_", 
+  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_rw_eval_", 
+  "results/gauss_quantiles_prediction/fitted_mean/gauss_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================

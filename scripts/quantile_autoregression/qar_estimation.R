@@ -16,7 +16,7 @@ source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare data from file "data/raw/IMF WEO\oecd_quarterly_data.csv"
 df_oecd <- load_and_prepare_oecd_data() %>% 
-  aggregate_to_annual_input() 
+  aggregate_to_annual_input() %>% mutate(horizon = 1.0)
 
 #load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
 df_weo <- load_and_prepare_WEO_data()
@@ -131,6 +131,24 @@ pred_weo <- grid_weo %>%
   pull(results) %>%
   bind_rows()
 
+#create grid 
+grid_oecd <- crossing(
+  country = unique(df_oecd$country),
+  target = c("gdp", "cpi"),
+  horizon = 1.0
+)
+
+#predict intervals for all combinations 
+pred_oecd <- grid_oecd %>% 
+  mutate(
+    results = pmap(
+      list(country, target, horizon),
+      ~ fit_qar_on(df_oecd, ..1, ..2, ..3)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
 #=============================
 
 #truth value within predicted interval?
@@ -154,6 +172,8 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
@@ -164,3 +184,37 @@ write.csv(pred_weo_eval, paste0(
   "results/qar_estimation/qar_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
+#=============================
+
+#truth value within predicted interval?
+pred_oecd <- is_covered(pred_oecd)
+
+#interval scores
+pred_oecd <- calc_IS_of_df(pred_oecd)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_oecd_filtered <- pred_oecd %>% 
+  filter(forecast_year>=2001, forecast_year<=2012)
+
+#summary of scores
+#coverage summary
+#Interval score summary
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_oecd_eval <- pred_oecd_filtered %>% 
+    summarise_eval())
+
+pred_oecd_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
+#save pred_weoiction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_oecd, paste0(
+  "results/qar_estimation/qar_prediction_oecd_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_oecd_eval, paste0(
+  "results/qar_estimation/qar_prediction_oecd_eval_", 
+  timestamp, ".csv"), row.names = FALSE)

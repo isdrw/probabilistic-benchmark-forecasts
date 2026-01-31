@@ -152,7 +152,7 @@ grid_rw  <- crossing(
   country = unique(df_rw$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_rw <- grid_rw %>% 
@@ -170,7 +170,7 @@ grid_ar1  <- crossing(
   country = unique(df_ar1$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_ar1 <- grid_ar1 %>% 
@@ -188,7 +188,7 @@ grid_arima1_1_0  <- crossing(
   country = unique(df_arima1_1_0$country),
   tau = seq(0.1, 0.9, 0.1),
   target = c("gdp", "cpi"),
-  horizon = c(0.5, 1.0)
+  horizon = c(0.0, 0.5, 1.0, 1.5)
 )
 
 pred_arima1_1_0 <- grid_arima1_1_0 %>% 
@@ -241,7 +241,7 @@ write.csv(pred_weo_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
-##Evaluation of prediction on dataset Random Walk (quarterly, generated)
+##Evaluation of prediction on dataset Random Walk 
 
 #PAVA correction
 pred_rw <- pava_correct_df(pred_rw)

@@ -216,6 +216,24 @@ pred_weo <- grid_weo %>%
   pull(results) %>%
   bind_rows()
 
+#create grid with all combinations for RW dataset
+grid_rw <- crossing(
+  country = unique(df_rw$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = c(0.0, 0.5, 1.0, 1.5)
+)
+
+#predict intervals for all combinations 
+pred_rw <- grid_rw %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ fit_bqr(df_rw, ..1, ..2, ..3, ..4)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
 #===========================================================
 ##Evaluation of prediction on dataset WEO (annual)
 
@@ -255,4 +273,42 @@ write.csv(pred_weo_eval, paste0(
   "results/bayesian_quantile_regression/bqr_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
+#===========================================================
+##Evaluation of prediction on dataset RW (annual)
+
+#PAVA correction
+pred_rw <- pava_correct_df(pred_rw)
+
+#truth value within predicted interval?
+pred_rw <- is_covered(pred_rw)
+
+#interval scores
+pred_rw <- calc_IS_of_df(pred_rw)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_rw_filtered <- pred_rw %>% 
+  filter(forecast_year<=2012, forecast_year>=2001)
+
+#summary of scores
+#coverage summary
+#Interval score summary
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_rw_eval <- pred_rw_filtered %>% 
+    summarise_eval())
+
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
+#save pred_weoiction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_rw, paste0(
+  "results/bayesian_quantile_regression/bqr_prediction_rw_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_rw_eval, paste0(
+  "results/bayesian_quantile_regression/bqr_prediction_rw_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
