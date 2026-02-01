@@ -23,7 +23,6 @@ df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
 df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
-
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
 df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 
