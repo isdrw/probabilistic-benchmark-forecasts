@@ -98,7 +98,19 @@ test_distr <- function(x, R = 11, distr = "norm", alpha = 0.05){
   return(out)
 }
 
-df_weo_g7 %>% filter(country == "Germany", horizon == 0.5) %>% 
-  pull(gdp_err) %>% na.exclude() %>% test_distr(distr = "ald", alpha = 0.5) %>% mean(na.rm = TRUE)
+grid_weo <- crossing(
+  country = unique(df_weo_g7$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = c(0.0, 0.5, 1.0, 1.5)
+)
 
-
+pred_weo <- grid_weo %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ test_distr(df_weo_g7, ..1, ..2, ..3, ..4)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()

@@ -29,30 +29,30 @@ df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_inpu
 
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
+  gdp_err = abs(tv_gdp - pred_gdp),
+  cpi_err = abs(tv_cpi - pred_cpi)
 )
 #calc predictions errors
 df_rw <- df_rw %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
+  gdp_err = abs(tv_gdp - pred_gdp),
+  cpi_err = abs(tv_cpi - pred_cpi)
 )
 #calc predictions errors
 df_ar1 <- df_ar1 %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
+  gdp_err = abs(tv_gdp - pred_gdp),
+  cpi_err = abs(tv_cpi - pred_cpi)
 )
 #calc predictions errors
 df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
-  gdp_err = tv_gdp - pred_gdp,
-  cpi_err = tv_cpi - pred_cpi
+  gdp_err = abs(tv_gdp - pred_gdp),
+  cpi_err = abs(tv_cpi - pred_cpi)
 )
 
 #filter for G7 countries
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
-#function to calculate quantiles of fitted t distribution and prediction interval
-fit_t_student <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
+#function to calculate quantiles of fitted normal distribution and prediction interval
+fit_lnorm <- function(df, country, tau, target, h, R=11){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -94,53 +94,42 @@ fit_t_student <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
     truth_value <- data_by_country[i+1,][[paste0("tv_", target)]]
     
     #fit normal distibution
-    fit <- fit_t_distribution(err_set)
+    fit_ln <- tryCatch({
+      fitdistrplus::fitdist(err_set, distr = "lnorm")
+    }, error = function(e){
+      message("fit failed for country: ", country, "\ntarget_year: ", target_year_end,
+              "\nhorizon: ", h, "\n", e$message)
+    })
     
-    #default mean
-    fitted_mean <- 0
-    
-    #if mean estimated as well
-    if(fit_mean){
-      fitted_mean <- fit$mean
+    fitted_meanlog <- 0
+    if(!is.null(fit_ln)){
+      fitted_meanlog <- as.numeric(fit_ln$estimate["meanlog"])  
     }
     
-    #according to Harvey, Newbold2003 small df
-    #represents kurtosis of forecast errors best
-    #--> cap df between 3 and 10
-    
-    fitted_df <- fit$df  
-    if(fitted_df > 10){
-      fitted_df <- 10
+    fitted_sdlog <- 1
+    if(!is.null(fit_ln)){
+      fitted_sdlog <- as.numeric(fit_ln$estimate["sdlog"])
     }
-    if(fitted_df < 3){
-      fitted_df <- 3
-    }
+    #quantile of fitted distr
+    q <- as.numeric(qlnorm(p = tau, meanlog = fitted_meanlog, sdlog = fitted_sdlog))
     
-    #extract standard deviation
-    fitted_sd <- fit$sd
-    
-    
-    #quantiles of fitted t distribution
-    q_l <- fitted_mean + fitted_sd * qt((1-tau)/2, df = fitted_df)
-    q_u <- fitted_mean + fitted_sd * qt((1+tau)/2, df = fitted_df)
-    
-    #append to output dataframe
-    pred_l <- last_pred + q_l
-    pred_u <- last_pred + q_u
+    #prediction interval bounds
+    pred_l <- last_pred - q
+    pred_u <- last_pred + q
     
     #new row
     out_list[[index]] <- new_pred_row(
-      country = as.character(country),
-      forecast_year = as.numeric(forecast_year_end),
-      target_year = as.numeric(target_year_end),
-      target_quarter = as.numeric(target_quarter_end),
-      target = as.character(target),
-      horizon = as.numeric(h),
-      tau = as.numeric(tau),
-      lower_bound = as.numeric(pred_l),
-      upper_bound = as.numeric(pred_u),
-      truth_value = as.numeric(truth_value),
-      prediction = as.numeric(last_pred)
+      country = country,
+      forecast_year = forecast_year_end,
+      target_year = target_year_end,
+      target_quarter = target_quarter_end,
+      target = target,
+      horizon = h,
+      tau = tau,
+      lower_bound = pred_l,
+      upper_bound = pred_u,
+      truth_value = truth_value,
+      prediction = last_pred
     )
     
     index <- index + 1
@@ -166,13 +155,13 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_t_student(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
+      ~ fit_lnorm(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on Random Walk data (R=44 due to quarterly data)
+#prediction on Random Walk data 
 grid_rw  <- crossing(
   country = unique(df_rw$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -184,13 +173,13 @@ pred_rw <- grid_rw %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_t_student(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
+      ~ fit_lnorm(df_rw, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
     )
   ) %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on AR(1) data (R=44 due to quarterly data)
+#prediction on AR(1) data 
 grid_ar1  <- crossing(
   country = unique(df_ar1$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -202,13 +191,13 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_t_student(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
+      ~ fit_lnorm(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
   bind_rows()
 
-#prediction on ARIMA(1,1,0) data (R=44 due to quarterly data)
+#prediction on ARIMA(1,1,0) data 
 grid_arima1_1_0  <- crossing(
   country = unique(df_arima1_1_0$country),
   tau = seq(0.1, 0.9, 0.1),
@@ -220,7 +209,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_t_student(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE)
+      ~ fit_lnorm(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
     )
   ) %>%
   pull(results) %>%
@@ -229,7 +218,7 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
 #==============================================================================
 ##Evaluation of prediction on dataset WEO (annual)
 
-#PAVA correction
+#PAVA correction 
 pred_weo <- pava_correct_df(pred_weo)
 
 #truth value within predicted interval?
@@ -253,22 +242,22 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
-pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_weo_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_weo_eval_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset Random Walk (quarterly, generated)
 
-#PAVA correction
+#PAVA correction 
 pred_rw <- pava_correct_df(pred_rw)
 
 #truth value within predicted interval?
@@ -292,22 +281,22 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
-pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_rw_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_rw_eval_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,0,0) (quarterly, generated)
 
-#PAVA correction
+#PAVA correction 
 pred_ar1 <- pava_correct_df(pred_ar1)
 
 #truth value within predicted interval?
@@ -331,22 +320,22 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
-pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_ar1_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_ar1_eval_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
 ##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
 
-#PAVA correction
+#PAVA correction 
 pred_arima1_1_0 <- pava_correct_df(pred_arima1_1_0)
 
 #truth value within predicted interval?
@@ -363,6 +352,7 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
   filter(forecast_year<=2012, forecast_year>=2001)
 
+
 #summary of scores
 #coverage summary
 #Interval score summary
@@ -370,17 +360,19 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
     summarise_eval())
 
-pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima1_1_0, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_arima1_1_0_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_arima1_1_0_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima1_1_0_eval, paste0(
-  "results/t_quantiles_prediction/fitted_mean/t_prediction_arima1_1_0_eval_", 
+  "results/lnorm_quantiles_prediction/lnorm_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
+
+
 
 
 

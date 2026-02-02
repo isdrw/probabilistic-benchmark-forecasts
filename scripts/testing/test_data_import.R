@@ -63,3 +63,7 @@ pred_weo %>% filter(tau == 0.8) %>% pull(IS) %>% mean(na.rm = TRUE)
 tmp <- read.csv("results/empirical_quantiles_prediction/empirical_prediction_weo_2025-12-09_16-57-01.csv")
 
 tmp %>% filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5) %>% summarise_eval()
+
+
+test_fit <- fitdistrplus::fitdist(rlnorm(100), distr = "lnorm")
+as.numeric(test_fit$estimate["sdlog"])
