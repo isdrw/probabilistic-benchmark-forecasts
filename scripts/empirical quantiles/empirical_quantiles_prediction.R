@@ -327,6 +327,8 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
 #save prediction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(

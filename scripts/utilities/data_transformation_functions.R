@@ -10,12 +10,10 @@
 #'load data from "WEOforecasts_prefilter.parquet"
 #'
 #'@note arrow package must be installed and loaded
-load_WEO_data <- function(){
-  #path
-  file_path <- r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"
+load_WEO_data <- function(path = r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"){
   
   #read data file
-  df <- read_parquet(file_path)
+  df <- read_parquet(path)
   
   return(df)
 }
@@ -94,8 +92,8 @@ prepare_WEO_df <- function(df){
 #'load and prepare WEOforecasts_prefilter.parquet" data
 #'
 #'@note dplyr and arrow must be installed and loaded
-load_and_prepare_WEO_data <- function(){
-  df <- load_WEO_data() %>%
+load_and_prepare_WEO_data <- function(path = r"(data/raw/IMF WEO\WEOforecasts_prefilter.parquet)"){
+  df <- load_WEO_data(path) %>%
     prepare_WEO_df()
   
   return(df)
@@ -108,12 +106,10 @@ load_and_prepare_WEO_data <- function(){
 # ===========================
 
 #'load data from "oecd_quarterly_data.csv"
-load_oecd_data <- function(){
-  #path
-  file_path <- r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"
-  
+load_oecd_data <- function(path = r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"){
+
   #read data file
-  df <- read.csv(file_path)
+  df <- read.csv(path)
   
   return(df)
 }
@@ -169,8 +165,8 @@ prepare_oecd_df <- function(df){
 
 #'load and prepare oecd data
 #'
-load_and_prepare_oecd_data <- function(){
-  df <- load_oecd_data() %>%
+load_and_prepare_oecd_data <- function(path = r"(data/raw/IMF WEO\oecd_quarterly_data.csv)"){
+  df <- load_oecd_data(path) %>%
     prepare_oecd_df()
   
   return(df)
@@ -185,12 +181,10 @@ load_and_prepare_oecd_data <- function(){
 #'load data from "point_prediction_rw.csv"
 #'in folder data/processed
 #'
-load_RW_data <- function(){
-  #path
-  file_path <- r"(data/processed/point predictions/point_predictions_rw.csv)"
+load_RW_data <- function(path = r"(data/processed/point predictions/point_predictions_rw.csv)"){
   
   #read data file
-  df <- read.csv(file_path)
+  df <- read.csv(path)
   
   return(df)
 }
@@ -234,8 +228,8 @@ prepare_RW_df <- function(df){
 #'load and prepare "point_predictions_rw.csv" data
 #'
 #'@note dplyr and arrow must be installed and loaded
-load_and_prepare_RW_data <- function(){
-  df <- load_RW_data() %>%
+load_and_prepare_RW_data <- function(path = r"(data/processed/point predictions/point_predictions_rw.csv)"){
+  df <- load_RW_data(path) %>%
     prepare_RW_df()
   
   return(df)
@@ -250,12 +244,10 @@ load_and_prepare_RW_data <- function(){
 #'load data from "point_predictions_arima1_0_0.csv"
 #'in folder data/processed
 #'
-load_ARIMA1_0_0_data <- function(){
-  #path
-  file_path <- r"(data/processed/point predictions/point_predictions_arima1_0_0.csv)"
+load_ARIMA1_0_0_data <- function(path = r"(data/processed/point predictions/point_predictions_arima1_0_0.csv)"){
   
   #read data file
-  df <- read.csv(file_path)
+  df <- read.csv(path)
   
   return(df)
 }
@@ -299,8 +291,8 @@ prepare_ARIMA1_0_0_df <- function(df){
 #'load and prepare "point_predictions_arima1_0_0.csv" data
 #'
 #'@note dplyr and arrow must be installed and loaded
-load_and_prepare_ARIMA1_0_0_data <- function(){
-  df <- load_ARIMA1_0_0_data() %>%
+load_and_prepare_ARIMA1_0_0_data <- function(path = r"(data/processed/point predictions/point_predictions_arima1_0_0.csv)"){
+  df <- load_ARIMA1_0_0_data(path) %>%
     prepare_ARIMA1_0_0_df()
   
   return(df)
@@ -316,12 +308,10 @@ load_and_prepare_ARIMA1_0_0_data <- function(){
 #'load data from "point_predictions_arima1_1_0.csv"
 #'in folder data/processed
 #'
-load_ARIMA1_1_0_data <- function(){
-  #path
-  file_path <- r"(data/processed/point predictions/point_predictions_arima1_1_0.csv)"
-  
+load_ARIMA1_1_0_data <- function(path = r"(data/processed/point predictions/point_predictions_arima1_1_0.csv)"){
+
   #read data file
-  df <- read.csv(file_path)
+  df <- read.csv(path)
   
   return(df)
 }
@@ -365,8 +355,8 @@ prepare_ARIMA1_1_0_df <- function(df){
 #'load and prepare "point_predictions_arima1_0_0.csv" data
 #'
 #'@note dplyr and arrow must be installed and loaded
-load_and_prepare_ARIMA1_1_0_data <- function(){
-  df <- load_ARIMA1_1_0_data() %>%
+load_and_prepare_ARIMA1_1_0_data <- function(path = r"(data/processed/point predictions/point_predictions_arima1_1_0.csv)"){
+  df <- load_ARIMA1_1_0_data(path) %>%
     prepare_ARIMA1_1_0_df()
   
   return(df)
@@ -382,12 +372,10 @@ load_and_prepare_ARIMA1_1_0_data <- function(){
 #'load data from "point_predictions_arima_auto.csv"
 #'in folder data/processed
 #'
-load_ARIMA_auto_data <- function(){
-  #path
-  file_path <- r"(data/processed/point predictions/point_predictions_arima_auto.csv)"
+load_ARIMA_auto_data <- function(path = r"(data/processed/point predictions/point_predictions_arima_auto.csv)"){
   
   #read data file
-  df <- read.csv(file_path)
+  df <- read.csv(path)
   
   return(df)
 }
@@ -431,8 +419,8 @@ prepare_ARIMA_auto_df <- function(df){
 #'load and prepare "point_predictions_arima_auto.csv" data
 #'
 #'@note dplyr and arrow must be installed and loaded
-load_and_prepare_ARIMA_auto_data <- function(){
-  df <- load_ARIMA_auto_data() %>%
+load_and_prepare_ARIMA_auto_data <- function(path = r"(data/processed/point predictions/point_predictions_arima_auto.csv)"){
+  df <- load_ARIMA_auto_data(path) %>%
     prepare_ARIMA_auto_df()
   
   return(df)

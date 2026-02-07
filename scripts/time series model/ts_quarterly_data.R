@@ -31,8 +31,8 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), 
     filter(country == !!country) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,(nrow(data_by_country)-1))){
-    data <- data_by_country[(i-R+1):i,][[target]]
+  for(i in seq(1 + order[1],(nrow(data_by_country)-n_ahead))){
+    data <- data_by_country[1:i,][[target]]
     tv_end <- min(i + n_ahead, nrow(data_by_country))
     truth_values <- data_by_country[(i+1):tv_end, ][[target]]
     #fill with NA for non-existent truth_values
@@ -41,9 +41,9 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), 
     }
     
     #start/end date of observations 
-    start_year <- data_by_country[(i-R+1),"forecast_year"]
+    start_year <- data_by_country[1,"forecast_year"]
     end_year <- data_by_country[i,"forecast_year"]
-    start_quarter <- data_by_country[(i-R+1),"forecast_quarter"]
+    start_quarter <- data_by_country[1,"forecast_quarter"]
     end_quarter <- data_by_country[i,"forecast_quarter"]
     start_date <- c(start_year,start_quarter)
     
@@ -57,15 +57,15 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), 
     ts_data <- ts(data, start = start_date,frequency = 4)
     
     #NA handling
-    ts_data <- na.exclude(ts_data)
+    ts_data <- na.omit(ts_data)
     
     #ARIMA model fit with order=order
     fit <- tryCatch({
       if(!auto){
         arima(ts_data, order = order)
       }else{
-        #fit model with best AIC 
-        auto.arima(ts_data, ic = "aic")
+        #fit model with best BIC 
+        auto.arima(ts_data, ic = "bic")
       }
     },error=function(e){
       message("Fit failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
@@ -74,7 +74,7 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), 
     
     
     #predict values for upcoming 1 (4 quarters)
-    #first prediction equals 0.0 horizon forecast and 3th prediction equals 0.5 horizon forecast...
+    #first prediction equals 0.0 horizon forecast and 3rd prediction equals 0.5 horizon forecast...
     pred <- tryCatch({
       predict(fit, n.ahead = n_ahead)
     },error=function(e){
@@ -146,7 +146,7 @@ pred_1_1_0 <- grid %>%
   pull(results) %>%
   bind_rows()
 
-#fit ARIMA model with auto fitting based on ALC on quarterly OECD data with rolling window
+#fit ARIMA model with auto fitting based on AIC on quarterly OECD data with rolling window
 pred_arima_auto <- grid %>% 
   mutate(
     results = pmap(
@@ -160,7 +160,7 @@ pred_arima_auto <- grid %>%
 #save predictions
 write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima1_0_0.csv", row.names = FALSE)
 write.csv(pred_1_1_0, "data/processed/point predictions/point_predictions_arima1_1_0.csv", row.names = FALSE)
-write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)
+write.csv(pred_arima_auto, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)
 
 
 

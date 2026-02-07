@@ -67,3 +67,10 @@ tmp %>% filter(forecast_year<=2012, forecast_year>=2001, horizon==0.5) %>% summa
 
 test_fit <- fitdistrplus::fitdist(rlnorm(100), distr = "lnorm")
 as.numeric(test_fit$estimate["sdlog"])
+
+
+a <- load_and_prepare_oecd_data()
+
+a %>% group_by(country) %>% na.omit() %>% summarise(min(forecast_year))
+
+

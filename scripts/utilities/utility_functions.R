@@ -696,6 +696,100 @@ aggregate_to_annual_input <- function(df){
   # triangular weights
   weights <- as.numeric((1 - abs(4 - 1:7) / 4))
   
+  has_pred <- all(c("pred_cpi", "pred_gdp") %in% names(df))
+  has_target <- all(c("target_year", "target_quarter") %in% names(df))
+  has_horizon <- "horizon" %in% names(df)
+  
+  out <- df %>%
+    mutate(
+      target_year = if(!has_target) forecast_year else target_year,
+      target_quarter = if(!has_target) forecast_quarter else target_quarter,
+      horizon = if(!has_horizon) NA_integer_ else horizon,
+      tq_index = 4 * target_year + target_quarter,
+      fq_index = 4 * forecast_year + forecast_quarter
+    ) %>%
+    group_by(country, horizon) %>%
+    group_modify(~{
+      
+      target_years <- sort(unique(.x$target_year))
+      out_list <- list()
+      
+      for(t in target_years){
+        
+        required_index <- (4 * (t - 1) + 2):(4 * t + 4)
+        
+        window <- .x %>%
+          filter(tq_index %in% required_index) %>%
+          arrange(tq_index)
+        
+        if(nrow(window) != 7){
+          next
+        }
+        
+        #truth values aggregation
+        log_tv_cpi <- log1p(window$tv_cpi / 100)
+        log_tv_gdp <- log1p(window$tv_gdp / 100)
+        
+        tv_cpi_annual <- 100 * sum(weights * log_tv_cpi)
+        tv_gdp_annual <- 100 * sum(weights * log_tv_gdp)
+        
+        #point prediction aggregation
+        if(has_pred){
+          
+          is_known <- window$tq_index <= window$fq_index[7]
+          
+          cpi_source <- ifelse(is_known,
+                               window$tv_cpi,
+                               window$pred_cpi)
+          
+          gdp_source <- ifelse(is_known,
+                               window$tv_gdp,
+                               window$pred_gdp)
+          
+          log_pred_cpi <- log1p(cpi_source / 100)
+          log_pred_gdp <- log1p(gdp_source / 100)
+          
+          pred_cpi_annual <- 100 * sum(weights * log_pred_cpi)
+          pred_gdp_annual <- 100 * sum(weights * log_pred_gdp)
+          
+        } else {
+          pred_cpi_annual <- NA_real_
+          pred_gdp_annual <- NA_real_
+        }
+        
+        out_list[[as.character(t)]] <- tibble(
+          country = window$country[1],
+          forecast_year = window$forecast_year[7],
+          forecast_quarter = window$forecast_quarter[7],
+          target_year = t,
+          target_quarter = window$target_quarter[7],
+          horizon = window$horizon[1],
+          pred_cpi = pred_cpi_annual,
+          pred_gdp = pred_gdp_annual,
+          tv_cpi = tv_cpi_annual,
+          tv_gdp = tv_gdp_annual
+        )
+      }
+      
+      bind_rows(out_list)
+    }) %>%
+    ungroup()
+  
+  if(!has_pred){
+    out <- out %>%
+      select(-pred_cpi, -pred_gdp, -target_year, -target_quarter, -horizon)
+  }
+  
+  out
+}
+
+
+
+'aggregate_to_annual_input <- function(df){
+  
+  # triangular weights
+  weights <- as.numeric((1 - abs(4 - 1:7) / 4))
+  
   # detect available columns
   has_pred <- all(c("pred_cpi", "pred_gdp") %in% names(df))
   has_target <- all(c("target_year", "target_quarter") %in% names(df))
@@ -776,7 +870,8 @@ aggregate_to_annual_input <- function(df){
   }
   
   out
-}
+}'
+
 
 
 

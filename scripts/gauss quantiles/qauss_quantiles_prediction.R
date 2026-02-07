@@ -27,6 +27,9 @@ df_ar1 <- load_and_prepare_ARIMA1_0_0_data() %>% aggregate_to_annual_input()
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
 df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_input()
 
+#load and prepare data from file "data/processed/point_predictions_arima_auto.csv" quarterly data
+df_arima_auto <- load_and_prepare_ARIMA_auto_data() %>% aggregate_to_annual_input()
+
 #calc predictions errors
 df_weo <- df_weo %>% mutate(
   gdp_err = tv_gdp - pred_gdp,
@@ -47,12 +50,17 @@ df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
   gdp_err = tv_gdp - pred_gdp,
   cpi_err = tv_cpi - pred_cpi
 )
+#calc predictions errors
+df_arima_auto <- df_arima_auto %>% mutate(
+  gdp_err = tv_gdp - pred_gdp,
+  cpi_err = tv_cpi - pred_cpi
+)
 
 #filter for G7 countries
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #function to calculate quantiles of fitted normal distribution and prediction interval
-fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
+fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE, unbiased_sd = FALSE){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -106,6 +114,9 @@ fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE){
     
     #extract standard deviation
     fitted_sd <- fit_n$estimate["sd"]
+    if(unbiased_sd){
+     fitted_sd <- sd(err_set) 
+    }
     q_l <- qnorm((1-tau)/2,mean = fitted_mean,sd = fitted_sd)
     q_u <- qnorm((1+tau)/2,mean = fitted_mean,sd = fitted_sd)
     
@@ -151,7 +162,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = TRUE)
+      ~ fit_gauss(df_weo_g7, ..1, ..2, ..3, ..4, fit_mean = FALSE, unbiased_sd = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -187,7 +198,7 @@ pred_ar1 <- grid_ar1 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_gauss(df_ar1, ..1, ..2, ..3, ..4, R = 11, fit_mean = TRUE, unbiased_sd = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -205,7 +216,25 @@ pred_arima1_1_0 <- grid_arima1_1_0 %>%
   mutate(
     results = pmap(
       list(country, tau, target, horizon),
-      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE)
+      ~ fit_gauss(df_arima1_1_0, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE, unbiased_sd = TRUE)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+#prediction on ARIMA(1,1,0) data 
+grid_arima_auto  <- crossing(
+  country = unique(df_arima_auto$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = c(0.0, 0.5, 1.0, 1.5)
+)
+
+pred_arima_auto <- grid_arima_auto %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ fit_gauss(df_arima_auto, ..1, ..2, ..3, ..4, R = 11, fit_mean = FALSE, unbiased_sd = TRUE)
     )
   ) %>%
   pull(results) %>%
@@ -368,6 +397,45 @@ write.csv(pred_arima1_1_0_eval, paste0(
   "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
+#==============================================================================
+##Evaluation of prediction on dataset ARIMA auto fitted (quarterly, generated)
+
+#PAVA correction 
+pred_arima_auto <- pava_correct_df(pred_arima_auto)
+
+#truth value within predicted interval?
+pred_arima_auto <- is_covered(pred_arima_auto)
+
+#interval scores
+pred_arima_auto <- calc_IS_of_df(pred_arima_auto)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_arima_auto_filtered <- pred_arima_auto %>% 
+  filter(forecast_year<=2012, forecast_year>=2001)
+
+
+#summary of scores
+#coverage summary
+#Interval score summary
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_arima_auto_eval <- pred_arima_auto_filtered %>% 
+    summarise_eval())
+
+pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+
+#save prediction and evaluation dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_arima_auto, paste0(
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima_auto_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_arima_auto_eval, paste0(
+  "results/gauss_quantiles_prediction/mean 0 assumption/gauss_prediction_arima_auto_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 
 
 
