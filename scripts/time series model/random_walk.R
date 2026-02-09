@@ -17,72 +17,108 @@ source("scripts/utilities/data_transformation_functions.R")
 df_oecd <- load_and_prepare_oecd_data()
 
 
-fit_rw <- function(df, country, target, n_ahead = 7){
+fit_rw <- function(df, country, target){
   
-  #prediction dataframe
-  predictions <- init_output_df(interval = FALSE)
-  
-  #output list 
   out_list <- list()
   index <- 1
   
-  #time series data for each country and target
   data_by_country <- df %>% 
     filter(country == !!country) %>%
     arrange(forecast_year, forecast_quarter)
   
-  n <- nrow(data_by_country)
-  for(i in 2:n){
-    last_value <- data_by_country[[target]][i-1]
-    if(is.na(last_value)){
-      next
-    }
+  for(i in seq(2, nrow(data_by_country))){
     
-    tv_end <- min(i + n_ahead - 1, n)
-    truth_values <- data_by_country[i:tv_end, ][[target]]
-    #fill with NA for non-existent truth_values
-    if(length(truth_values) < n_ahead){
-      truth_values <- c(truth_values, rep(NA, n_ahead - length(truth_values)))
-    }
+    end_year    <- data_by_country[i, "forecast_year"]
+    end_quarter <- data_by_country[i, "forecast_quarter"]
     
-    #start/end date of observations 
-    end_year <- data_by_country[i-1,"forecast_year"]
-    end_quarter <- data_by_country[i-1,"forecast_quarter"]
-    
-    #random walk prediction (last observation)
-    pred_rw <- rep(last_value, n_ahead)
-    
-    # horizons (quarterly)
-    h_steps <- 1:n_ahead
-    horizons <- h_steps / 4 - 0.25
-    
-    # target quarter and year vectors based on n_ahead forecasts
-    tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
-    ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
-    
-    out_list[[index]] <- new_pred_row(
-      country = rep(country,n_ahead),
-      forecast_year = rep(end_year,n_ahead),
-      forecast_quarter = rep(end_quarter,n_ahead),
-      target_year = ty,
-      target_quarter = tq,
-      horizon = horizons,
-      target = rep(target,n_ahead),
-      truth_value = truth_values,
-      prediction = pred_rw,
-      interval = FALSE,
+    # determine forecast schemes by quarter
+    schemes <- switch(
+      as.character(end_quarter),
+      "3" = list(
+        list(n_ahead = 1, horizon = 0.0),
+        list(n_ahead = 5, horizon = 1.0)
+      ),
+      "1" = list(
+        list(n_ahead = 3, horizon = 0.5),
+        list(n_ahead = 7, horizon = 1.5)
+      ),
+      NULL
     )
     
-    index <- index + 1
+    if (is.null(schemes)){
+      next
+    } 
     
+    data <- data_by_country[1:i, ][[target]]
+    if (all(is.na(data)) || is.null(data)){
+      next
+    } 
+    
+    ts_data <- ts(
+      na.omit(data),
+      start = c(data_by_country[1,"forecast_year"],
+                data_by_country[1,"forecast_quarter"]),
+      frequency = 4
+    )
+
+    fit <- tryCatch({
+      arima(ts_data, order = c(0, 1, 0))
+    }, error = function(e){
+      message("fit failed for year, ", end_year, ", country: ", country, ", target: ", target)
+      NULL
+    })
+    
+    if (is.null(fit)){
+      next
+    } 
+    
+    for (s in schemes) {
+      #number of n ahead forecasts and corresponding horizon
+      n_ahead <- s$n_ahead
+      horizon <- s$horizon
+      
+      
+      pred <- tryCatch({
+        predict(fit, n.ahead = n_ahead)$pred
+      }, error = function(e) NULL)
+      
+      if (is.null(pred)) next
+      
+      h_steps <- 1:n_ahead
+      tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
+      ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
+      
+      tv_end <- min(i + n_ahead, nrow(data_by_country))
+      truth_values <- data_by_country[(i+1):tv_end, ][[target]]
+      
+      if (length(truth_values) < n_ahead) {
+        truth_values <- c(
+          truth_values,
+          rep(NA_real_, n_ahead - length(truth_values))
+        )
+      }
+      
+      out_list[[index]] <- new_pred_row(
+        country = rep(country, n_ahead),
+        forecast_year = rep(end_year, n_ahead),
+        forecast_quarter = rep(end_quarter, n_ahead),
+        target_year = ty,
+        target_quarter = tq,
+        horizon = rep(horizon, n_ahead),
+        target = rep(target, n_ahead),
+        truth_value = truth_values,
+        prediction = pred,
+        interval = FALSE
+      )
+      
+      index <- index + 1
+    }
   }
   
-  predictions <- bind_rows(out_list)
-  
-  return(predictions)
+  bind_rows(out_list)
 }
 
-  #create grid 
+#create grid 
 grid <- crossing(
   country = unique(df_oecd$country),
   target = c("tv_gdp", "tv_cpi")

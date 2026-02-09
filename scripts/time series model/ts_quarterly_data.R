@@ -16,14 +16,12 @@ source("scripts/utilities/data_transformation_functions.R")
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
 df_oecd <- load_and_prepare_oecd_data()
 
+
 #Function to fit ARIMA model either with given order or with automatic
-#fitting of best order according to AIC
-fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), auto=FALSE){
+#fitting of best order according to BIC
+fit_arima <- function(df, country, target, R = 44,
+                      order = c(1,0,0), auto = FALSE){
   
-  #prediction
-  predictions <- init_output_df(interval = FALSE)
-  
-  #output list 
   out_list <- list()
   index <- 1
   
@@ -31,92 +29,109 @@ fit_arima <- function(df, country, target, R = 44, n_ahead = 7, order=c(1,0,0), 
     filter(country == !!country) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(1 + order[1],(nrow(data_by_country)-n_ahead))){
-    data <- data_by_country[1:i,][[target]]
-    tv_end <- min(i + n_ahead, nrow(data_by_country))
-    truth_values <- data_by_country[(i+1):tv_end, ][[target]]
-    #fill with NA for non-existent truth_values
-    if(length(truth_values) < n_ahead){
-      truth_values <- c(truth_values, rep(NA_real_, n_ahead - length(truth_values)))
-    }
+  for(i in seq(1 + order[1], nrow(data_by_country))){
     
-    #start/end date of observations 
-    start_year <- data_by_country[1,"forecast_year"]
-    end_year <- data_by_country[i,"forecast_year"]
-    start_quarter <- data_by_country[1,"forecast_quarter"]
-    end_quarter <- data_by_country[i,"forecast_quarter"]
-    start_date <- c(start_year,start_quarter)
+    end_year    <- data_by_country[i, "forecast_year"]
+    end_quarter <- data_by_country[i, "forecast_quarter"]
     
-    #skip if only NAs
-    if(all(is.na(data)) || is.null(data)){
-      message("no valid data for ", country, " and year: ", end_year)
-      next
-    }
-    
-    #convert to time series object
-    ts_data <- ts(data, start = start_date,frequency = 4)
-    
-    #NA handling
-    ts_data <- na.omit(ts_data)
-    
-    #ARIMA model fit with order=order
-    fit <- tryCatch({
-      if(!auto){
-        arima(ts_data, order = order)
-      }else{
-        #fit model with best BIC 
-        auto.arima(ts_data, ic = "bic")
-      }
-    },error=function(e){
-      message("Fit failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
+    # determine forecast schemes by quarter
+    schemes <- switch(
+      as.character(end_quarter),
+      "3" = list(
+        list(n_ahead = 1, horizon = 0.0),
+        list(n_ahead = 5, horizon = 1.0)
+      ),
+      "1" = list(
+        list(n_ahead = 3, horizon = 0.5),
+        list(n_ahead = 7, horizon = 1.5)
+      ),
       NULL
-    })
-    
-    
-    #predict values for upcoming 1 (4 quarters)
-    #first prediction equals 0.0 horizon forecast and 3rd prediction equals 0.5 horizon forecast...
-    pred <- tryCatch({
-      predict(fit, n.ahead = n_ahead)
-    },error=function(e){
-      message("Prediction failed for ", country, " (", start_year, "–", end_year, "): ", e$message)
-      NULL
-    })
-    
-    pred <- pred$pred
-    
-    if(is.null(pred)){
-      next
-    }
-    
-    # horizons (quarterly)
-    h_steps <- 1:n_ahead
-    horizons <- h_steps / 4 - 0.25
-    
-    # target quarter and year vectors based on n_ahead forecasts
-    tq <- ((end_quarter - 1 + h_steps) %% 4) + 1
-    ty <- end_year + ((end_quarter - 1 + h_steps) %/% 4)
-    
-    
-    out_list[[index]] <- new_pred_row(
-      country = rep(country,n_ahead),
-      forecast_year = rep(end_year,n_ahead),
-      forecast_quarter = rep(end_quarter,n_ahead),
-      target_year = ty,
-      target_quarter = tq,
-      horizon = horizons,
-      target = rep(target,n_ahead),
-      truth_value = truth_values,
-      prediction = pred,
-      interval = FALSE,
     )
     
-    index <- index + 1
+    if (is.null(schemes)){
+      next
+    } 
+    
+    data <- data_by_country[1:i, ][[target]]
+    if (all(is.na(data)) || is.null(data)){
+      next
+    } 
+    
+    ts_data <- ts(
+      na.omit(data),
+      start = c(data_by_country[1,"forecast_year"],
+                data_by_country[1,"forecast_quarter"]),
+      frequency = 4
+    )
+    
+    fit <- tryCatch({
+      if (!auto){
+        arima(ts_data, order = order)
+      } 
+      else{
+        auto.arima(ts_data, ic = "bic")
+      } 
+    }, error = function(e){
+      message("fit failed for year, ", end_year, ", country: ", country, ", target: ", target)
+      NULL
+    })
+    
+    if (is.null(fit)){
+      next
+    } 
+    
+    for (s in schemes) {
+      #number of n ahead forecasts and corresponding horizon
+      n_ahead <- s$n_ahead
+      horizon <- s$horizon
+      
+      
+      pred <- tryCatch({
+        predict(fit, n.ahead = n_ahead)$pred
+      }, error = function(e) NULL)
+      
+      if (is.null(pred)) next
+      
+      origin_index <- 4 * end_year + end_quarter
+      h_steps <- 1:n_ahead
+      target_index <- origin_index + h_steps
+      
+      tq <- target_index %% 4
+      tq[tq == 0] <- 4
+      ty <- floor(target_index / 4)
+      ty[tq == 4] <- ty[tq == 4] - 1
+      
+      tv_end <- min(i + n_ahead, nrow(data_by_country))
+      truth_values <- data_by_country[(i+1):tv_end, ][[target]]
+      
+      if (length(truth_values) < n_ahead) {
+        truth_values <- c(
+          truth_values,
+          rep(NA_real_, n_ahead - length(truth_values))
+        )
+      }
+      
+      out_list[[index]] <- new_pred_row(
+        country = rep(country, n_ahead),
+        forecast_year = rep(end_year, n_ahead),
+        forecast_quarter = rep(end_quarter, n_ahead),
+        target_year = ty,
+        target_quarter = tq,
+        horizon = rep(horizon, n_ahead),
+        target = rep(target, n_ahead),
+        truth_value = truth_values,
+        prediction = pred,
+        interval = FALSE
+      )
+      
+      index <- index + 1
+    }
   }
-   
-  predictions <- bind_rows(out_list)
   
-  return(predictions)
+  bind_rows(out_list)
 }
+
+
 
 #create grid 
 grid <- crossing(

@@ -69,8 +69,13 @@ test_fit <- fitdistrplus::fitdist(rlnorm(100), distr = "lnorm")
 as.numeric(test_fit$estimate["sdlog"])
 
 
-a <- load_and_prepare_oecd_data()
+required_index <- (4*(2000-1)+2):(4*2000+4)
 
-a %>% group_by(country) %>% na.omit() %>% summarise(min(forecast_year))
-
-
+tmp<-df_ar1 %>% group_by(country) %>% group_modify(~{
+  pred_df <- .x %>%
+    filter(
+      forecast_year == 1999,
+      horizon == 1.0
+    ) %>%
+    arrange(tq_index)
+})

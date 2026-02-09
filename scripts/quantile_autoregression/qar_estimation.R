@@ -15,8 +15,7 @@ source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare data from file "data/raw/IMF WEO\oecd_quarterly_data.csv"
-df_oecd <- load_and_prepare_oecd_data() %>% 
-  aggregate_to_annual_input() %>% mutate(horizon = 1.0)
+df_oecd <- load_and_prepare_RW_data() %>% aggregate_to_annual_input() 
 
 #load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
 df_weo <- load_and_prepare_WEO_data()
@@ -24,7 +23,7 @@ df_weo <- load_and_prepare_WEO_data()
 df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #
-fit_qar_on <- function(df, country, target, h, tau = seq(0.1, 0.9, 0.1), nlag=1, R=11, n_ahead=1){
+fit_qar_on_df <- function(df, country, target, h, tau = seq(0.1, 0.9, 0.1), nlag=1, R=11, n_ahead=1){
   
   #prediction dataframe
   predictions <- init_output_df()
@@ -125,7 +124,7 @@ pred_weo <- grid_weo %>%
   mutate(
     results = pmap(
       list(country, target, horizon),
-      ~ fit_qar_on(df_weo_g7, ..1, ..2, ..3)
+      ~ fit_qar_on_df(df_weo_g7, ..1, ..2, ..3)
     )
   ) %>%
   pull(results) %>%
@@ -143,7 +142,7 @@ pred_oecd <- grid_oecd %>%
   mutate(
     results = pmap(
       list(country, target, horizon),
-      ~ fit_qar_on(df_oecd, ..1, ..2, ..3)
+      ~ fit_qar_on_df(df_oecd, ..1, ..2, ..3)
     )
   ) %>%
   pull(results) %>%
