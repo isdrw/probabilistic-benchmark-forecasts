@@ -139,6 +139,17 @@ grid <- crossing(
   target = c("tv_gdp", "tv_cpi")
 )
 
+#fit ARIMA(0,1,0)/RW(1) on quarterly OECD data with rolling window
+pred_rw <- grid %>% 
+  mutate(
+    results = pmap(
+      list(country, target),
+      ~ fit_arima(df_oecd, ..1, ..2, order = c(0, 1, 0))
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
 #fit ARIMA(1,0,0) on quarterly OECD data with rolling window
 pred_1_0_0 <- grid %>% 
   mutate(
@@ -173,6 +184,7 @@ pred_arima_auto <- grid %>%
   bind_rows()
 
 #save predictions
+write.csv(pred_rw, "data/processed/point predictions/point_predictions_rw.csv", row.names = FALSE)
 write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima1_0_0.csv", row.names = FALSE)
 write.csv(pred_1_1_0, "data/processed/point predictions/point_predictions_arima1_1_0.csv", row.names = FALSE)
 write.csv(pred_arima_auto, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)

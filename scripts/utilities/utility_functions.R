@@ -1206,6 +1206,18 @@ easyUQ_idr <- function(x, y){
   #objective matrix with n rows for each x and m cols for each threshold of y
   F_hat <- matrix(NA_real_, nrow = n, ncol = m)
   
+  settings <- osqp::osqpSettings(verbose = FALSE, warm_start = TRUE, max_iter = 2000)
+  
+  #initialize solver once 
+  solver <- osqp::osqp(
+    P = P,
+    q = rep(0, n),
+    A = A,
+    l = l,
+    u = u,
+    pars = settings
+  )
+  
   for(j in seq_len(m)){
     #value of indicator function y <= y_j (threshold)
     z <- as.numeric(y <= y_grid[j])
@@ -1213,14 +1225,7 @@ easyUQ_idr <- function(x, y){
     #linear part of objective function as defined in doc of OSQP solver
     q <- -z
     
-    #solve quadratic problem with osqp solver
-    solver <- osqp::osqp(
-      P = P,
-      q = q,
-      A = A,
-      l = l,
-      u = u
-    )
+    solver$Update(q = q)
     
     #extract solution
     F_hat[,j] <- solver$Solve()$x
