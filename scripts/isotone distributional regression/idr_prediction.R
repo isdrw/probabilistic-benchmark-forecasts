@@ -46,6 +46,7 @@ df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_inpu
 #load and prepare data from file "data/processed/point_predictions_arima_auto.csv" aggregated data
 df_arima_auto <- load_and_prepare_ARIMA_auto_data() %>% aggregate_to_annual_input()
 
+#quarterly data
 #load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
 df_rw_q <- load_and_prepare_RW_data()
 
@@ -797,5 +798,5 @@ write.csv(pred_arima_auto_q, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima_auto_q_eval, paste0(
-  "results/EasyUQ_idr/easyUQ_prediction_arima_auto_q_eval_", 
+  "results/EasyUQ_idr/quarterly/easyUQ_prediction_arima_auto_q_eval_", 
   timestamp, ".csv"), row.names = FALSE)
