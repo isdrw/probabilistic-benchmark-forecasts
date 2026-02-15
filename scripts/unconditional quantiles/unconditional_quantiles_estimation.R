@@ -12,7 +12,10 @@ source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
-df_oecd <- load_and_prepare_oecd_data() %>% mutate(horizon = 1.0)
+df_oecd_q <- load_and_prepare_RW_data() 
+
+#annual
+df_oecd <- df_oecd_q %>% aggregate_to_annual_input()
 
 #load and prepare data from file "data/raw/IMF WEO\WEOforecasts_prefilter.parquet"
 df_weo <- load_and_prepare_WEO_data()
@@ -34,14 +37,14 @@ pred_unc_quantiles <- function(df, country, tau, target, h, nlag=1, R=11){
     filter(country == !!country, horizon == h) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(R,nrow(data_by_country))){
-    data <- data_by_country[(i-R+1):i,][[paste0("tv_", target)]]
+  for(i in seq(1,nrow(data_by_country)-1)){
+    data <- data_by_country[1:i,][[paste0("tv_", target)]]
     
     #start and end date of rolling window 
     end_year <- as.numeric(data_by_country[i,"forecast_year"])
-    start_year <- as.numeric(data_by_country[i-R+1,"forecast_year"])
+    start_year <- as.numeric(data_by_country[1,"forecast_year"])
     end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
-    start_quarter <- as.numeric(data_by_country[i-R+1,"forecast_quarter"])
+    start_quarter <- as.numeric(data_by_country[1,"forecast_quarter"])
     
     #skip if only NAs
     if(all(is.na(data)) || is.null(data)){
@@ -139,6 +142,59 @@ write.csv(pred_oecd_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 
+
+#create grid 
+grid_oecd_q <- crossing(
+  country = unique(df_oecd_q$country),
+  tau = seq(0.1, 0.9, 0.1),
+  target = c("gdp", "cpi"),
+  horizon = 1.0
+)
+
+#predict intervals for all combinations 
+pred_oecd_q <- grid_oecd %>% 
+  mutate(
+    results = pmap(
+      list(country, tau, target, horizon),
+      ~ pred_unc_quantiles(df_oecd_q, ..1, ..2, ..3, ..4)
+    )
+  ) %>%
+  pull(results) %>%
+  bind_rows()
+
+
+#truth value within predicted interval?
+pred_oecd_q <- is_covered(pred_oecd_q)
+
+#interval scores
+pred_oecd_q <- calc_IS_of_df(pred_oecd_q)
+
+#check calibration by calculating coverage for all prediction intervals, 
+#forecast year 2013 and above, cumulated over all g7 countries
+#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
+#filter prediction dataframe for specific horizon and period
+pred_oecd_q_filtered <- pred_oecd_q %>% 
+  filter(forecast_year>=2001, forecast_year<=2012)
+
+#summary of scores
+#coverage summary
+#Interval score summary
+#Weighted interval score summary for 50% and 80% intervals and 10%...90%
+(pred_oecd_q_eval <- pred_oecd_q_filtered %>% 
+    summarise_eval())
+
+pred_oecd_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+
+#save prediction dataframe
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+write.csv(pred_oecd_q, paste0(
+  "results/unconditional_quantiles/quarterly/unconditional_quantiles_oecd_q_", 
+  timestamp, ".csv"), row.names = FALSE)
+
+write.csv(pred_oecd_q_eval, paste0(
+  "results/unconditional_quantiles/quarterly/unconditional_quantiles_oecd_q_eval_", 
+  timestamp, ".csv"), row.names = FALSE)
 #=================
 #prediction on annual data (WEO dataset)
 #=================
@@ -175,7 +231,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
-  filter(forecast_year>=2001, forecast_year<=2012, horizon==0.5)
+  filter(forecast_year>=2001, forecast_year<=2012)
 
 #summary of scores
 #coverage summary
@@ -183,6 +239,8 @@ pred_weo_filtered <- pred_weo %>%
 #Weighted interval score summary for 50% and 80% intervals and 10%...90%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
+
+pred_oecd_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

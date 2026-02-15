@@ -17,8 +17,6 @@ source("scripts/utilities/data_transformation_functions.R")
 df_oecd <- load_and_prepare_oecd_data()
 
 
-#Function to fit ARIMA model either with given order or with automatic
-#fitting of best order according to BIC
 fit_arima <- function(df, country, target, R = 44,
                       order = c(1,0,0), auto = FALSE){
   
@@ -33,24 +31,6 @@ fit_arima <- function(df, country, target, R = 44,
     
     end_year    <- data_by_country[i, "forecast_year"]
     end_quarter <- data_by_country[i, "forecast_quarter"]
-    
-    # determine forecast schemes by quarter
-    schemes <- switch(
-      as.character(end_quarter),
-      "3" = list(
-        list(n_ahead = 1, horizon = 0.0),
-        list(n_ahead = 5, horizon = 1.0)
-      ),
-      "1" = list(
-        list(n_ahead = 3, horizon = 0.5),
-        list(n_ahead = 7, horizon = 1.5)
-      ),
-      NULL
-    )
-    
-    if (is.null(schemes)){
-      next
-    } 
     
     data <- data_by_country[1:i, ][[target]]
     if (all(is.na(data)) || is.null(data)){
@@ -67,12 +47,13 @@ fit_arima <- function(df, country, target, R = 44,
     fit <- tryCatch({
       if (!auto){
         arima(ts_data, order = order)
-      } 
-      else{
+      } else {
         auto.arima(ts_data, ic = "bic")
-      } 
+      }
     }, error = function(e){
-      message("fit failed for year, ", end_year, ", country: ", country, ", target: ", target)
+      message("fit failed for year ", end_year,
+              ", country: ", country,
+              ", target: ", target)
       NULL
     })
     
@@ -80,57 +61,55 @@ fit_arima <- function(df, country, target, R = 44,
       next
     } 
     
-    for (s in schemes) {
-      #number of n ahead forecasts and corresponding horizon
-      n_ahead <- s$n_ahead
-      horizon <- s$horizon
-      
-      
-      pred <- tryCatch({
-        predict(fit, n.ahead = n_ahead)$pred
-      }, error = function(e) NULL)
-      
-      if (is.null(pred)) next
-      
-      origin_index <- 4 * end_year + end_quarter
-      h_steps <- 1:n_ahead
-      target_index <- origin_index + h_steps
-      
-      tq <- target_index %% 4
-      tq[tq == 0] <- 4
-      ty <- floor(target_index / 4)
-      ty[tq == 4] <- ty[tq == 4] - 1
-      
-      tv_end <- min(i + n_ahead, nrow(data_by_country))
-      truth_values <- data_by_country[(i+1):tv_end, ][[target]]
-      
-      if (length(truth_values) < n_ahead) {
-        truth_values <- c(
-          truth_values,
-          rep(NA_real_, n_ahead - length(truth_values))
-        )
-      }
-      
-      out_list[[index]] <- new_pred_row(
-        country = rep(country, n_ahead),
-        forecast_year = rep(end_year, n_ahead),
-        forecast_quarter = rep(end_quarter, n_ahead),
-        target_year = ty,
-        target_quarter = tq,
-        horizon = rep(horizon, n_ahead),
-        target = rep(target, n_ahead),
-        truth_value = truth_values,
-        prediction = pred,
-        interval = FALSE
+    # ---- FIXED 7-QUARTER FORECAST ----
+    n_ahead <- 7
+    h_steps <- 1:n_ahead
+    
+    pred <- tryCatch({
+      predict(fit, n.ahead = n_ahead)$pred
+    }, error = function(e) NULL)
+    
+    if (is.null(pred)) next
+    
+    origin_index <- 4 * end_year + end_quarter
+    target_index <- origin_index + h_steps
+    
+    tq <- target_index %% 4
+    tq[tq == 0] <- 4
+    ty <- floor(target_index / 4)
+    ty[tq == 4] <- ty[tq == 4] - 1
+    
+    # NEW horizon mapping
+    horizon_values <- (h_steps - 1) * 0.25
+    
+    tv_end <- min(i + n_ahead, nrow(data_by_country))
+    truth_values <- data_by_country[(i+1):tv_end, ][[target]]
+    
+    if (length(truth_values) < n_ahead) {
+      truth_values <- c(
+        truth_values,
+        rep(NA_real_, n_ahead - length(truth_values))
       )
-      
-      index <- index + 1
     }
+    
+    out_list[[index]] <- new_pred_row(
+      country = rep(country, n_ahead),
+      forecast_year = rep(end_year, n_ahead),
+      forecast_quarter = rep(end_quarter, n_ahead),
+      target_year = ty,
+      target_quarter = tq,
+      horizon = horizon_values,
+      target = rep(target, n_ahead),
+      truth_value = truth_values,
+      prediction = pred,
+      interval = FALSE
+    )
+    
+    index <- index + 1
   }
   
   bind_rows(out_list)
 }
-
 
 
 #create grid 
@@ -184,12 +163,7 @@ pred_arima_auto <- grid %>%
   bind_rows()
 
 #save predictions
-write.csv(pred_rw, "data/processed/point predictions/point_predictions_rw.csv", row.names = FALSE)
-write.csv(pred_1_0_0, "data/processed/point predictions/point_predictions_arima1_0_0.csv", row.names = FALSE)
-write.csv(pred_1_1_0, "data/processed/point predictions/point_predictions_arima1_1_0.csv", row.names = FALSE)
-write.csv(pred_arima_auto, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)
-
-
-
-
-
+write.csv(pred_rw, "data/processed/point predictions/quarterly_horizons/point_predictions_rw.csv", row.names = FALSE)
+write.csv(pred_1_0_0, "data/processed/point predictions/quarterly_horizons/point_predictions_arima1_0_0.csv", row.names = FALSE)
+write.csv(pred_1_1_0, "data/processed/point predictions/quarterly_horizons/point_predictions_arima1_1_0.csv", row.names = FALSE)
+write.csv(pred_arima_auto, "data/processed/point predictions/quarterly_horizons/point_predictions_arima_auto.csv", row.names = FALSE)
