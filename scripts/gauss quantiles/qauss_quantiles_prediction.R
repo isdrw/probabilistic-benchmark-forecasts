@@ -514,7 +514,9 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
-pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -553,7 +555,9 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
-pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -592,7 +596,9 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
-pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -632,7 +638,9 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
   summarise_eval())
 
-pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -672,7 +680,9 @@ pred_arima_auto_filtered <- pred_arima_auto %>%
 (pred_arima_auto_eval <- pred_arima_auto_filtered %>% 
     summarise_eval())
 
-pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>% print(n = Inf)
+pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -712,7 +722,9 @@ pred_rw_q_filtered <- pred_rw_q %>%
 (pred_rw_q_eval <- pred_rw_q_filtered %>% 
     summarise_eval())
 
-pred_rw_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_rw_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -752,7 +764,8 @@ pred_ar1_q_filtered <- pred_ar1_q %>%
 (pred_ar1_q_eval <- pred_ar1_q_filtered %>% 
     summarise_eval())
 
-pred_ar1_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_ar1_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -792,7 +805,8 @@ pred_arima1_1_0_q_filtered <- pred_arima1_1_0_q %>%
 (pred_arima1_1_0_q_eval <- pred_arima1_1_0_q_filtered %>% 
     summarise_eval())
 
-pred_arima1_1_0_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima1_1_0_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
@@ -832,7 +846,9 @@ pred_arima_auto_q_filtered <- pred_arima_auto_q %>%
 (pred_arima_auto_q_eval <- pred_arima_auto_q_filtered %>% 
     summarise_eval())
 
-pred_arima_auto_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima_auto_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
+
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")

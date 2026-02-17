@@ -426,3 +426,59 @@ load_and_prepare_ARIMA_auto_data <- function(path = r"(data/processed/point pred
   return(df)
 }
 
+#=======================================================================
+
+#'function produces LaTeX Block of given evaluation dataframe
+make_latex_block <- function(df) {
+  
+  # Horizon labels
+  horizon_map <- c(
+    "0"   = "Fall, current",
+    "0.5" = "Spring, current",
+    "1"   = "Fall, next",
+    "1.5" = "Spring, next"
+  )
+  
+  # Create one set of rows (CPI or GDP)
+  make_rows <- function(target_name) {
+    
+    d <- df[df$target == target_name, ]
+    
+    # Ensure correct ordering
+    d <- d[order(d$horizon, d$tau), ]
+    
+    # Build LaTeX rows
+    rows <- lapply(unique(d$horizon), function(h) {
+      
+      r <- d[d$horizon == h, ]
+      r05 <- r[r$tau == 0.5, ]
+      r08 <- r[r$tau == 0.8, ]
+      
+      sprintf(
+        "    & %-15s & %.3f & %.3f & %.3f & %.3f & %.3f & %.3f \\\\",
+        horizon_map[as.character(h)],
+        r05$mean_IS,
+        r08$mean_IS,
+        r05$WIS_58,
+        r05$WIS_all,
+        r05$coverage,
+        r08$coverage
+      )
+    })
+    
+    paste(rows, collapse = "\n")
+  }
+  
+  list(
+    CPI = make_rows("cpi"),
+    GDP = make_rows("gdp")
+  )
+}
+
+make_latex_block_string <- function(df){
+  cat("CPI\n")
+  cat(make_latex_block(df)$CPI,"\n")
+  cat("GDP\n")
+  cat(make_latex_block(df)$GDP)
+}
+
