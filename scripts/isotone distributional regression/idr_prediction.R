@@ -1,5 +1,6 @@
 rm(list = ls())
 gc()
+set.seed(2026)
 
 #load libraries
 library(arrow)
@@ -21,18 +22,16 @@ handlers(global = TRUE)
 handlers("txtprogressbar")
 
 #multi-threading 
-future::plan(multisession, workers = 4)
+future::plan(multisession, workers = 6)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #==================================================================
+
 #load and prepare WEO data
 df_weo <- load_and_prepare_WEO_data()
-
-#filter for G7 countries
-df_weo_g7 <- df_weo %>% filter(g7 == 1)
 
 #load and prepare data from file "data/processed/point_predictions_rw.csv" aggregated data
 df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
@@ -47,18 +46,28 @@ df_arima1_1_0 <- load_and_prepare_ARIMA1_1_0_data() %>% aggregate_to_annual_inpu
 df_arima_auto <- load_and_prepare_ARIMA_auto_data() %>% aggregate_to_annual_input()
 
 #quarterly data
-#load and prepare data from file "data/processed/point_predictions_rw.csv" quarterly data
-df_rw_q <- load_and_prepare_RW_data()
+#load and prepare data from file "data/processed/quarterly_horizons/point_predictions_rw.csv" quarterly data
+df_rw_q <- load_and_prepare_RW_data(
+  "data/processed/point predictions/quarterly_horizons/point_predictions_rw.csv"
+)
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_0_0.csv" quarterly data
-df_ar1_q <- load_and_prepare_ARIMA1_0_0_data()
+df_ar1_q <- load_and_prepare_ARIMA1_0_0_data(
+  "data/processed/point predictions/quarterly_horizons/point_predictions_arima1_0_0.csv"
+)
 
 #load and prepare data from file "data/processed/point_predictions_arima_1_1_0.csv" quarterly data
-df_arima1_1_0_q <- load_and_prepare_ARIMA1_1_0_data() 
+df_arima1_1_0_q <- load_and_prepare_ARIMA1_1_0_data(
+  "data/processed/point predictions/quarterly_horizons/point_predictions_arima1_1_0.csv"
+) 
 
 #load and prepare data from file "data/processed/point_predictions_arima_auto.csv" quarterly data
-df_arima_auto_q <- load_and_prepare_ARIMA_auto_data()
+df_arima_auto_q <- load_and_prepare_ARIMA_auto_data(
+  "data/processed/point predictions/quarterly_horizons/point_predictions_arima_auto.csv"
+)
 
+#filter for G7 countries
+df_weo_g7 <- df_weo %>% filter(g7 == 1)
 #==================================================================
 
 
@@ -191,7 +200,8 @@ with_progress({
       #progress bar update
       p()  
       res
-    }
+    },
+    .options = furrr::furrr_options(seed = 2026)
   )
 })
 
@@ -221,7 +231,8 @@ with_progress({
       #progress bar update
       p()  
       res
-    }
+    },
+    .options = furrr::furrr_options(seed = 2026)
   )
 })
 
@@ -251,7 +262,8 @@ with_progress({
       #progress bar update
       p()  
       res
-    }
+    },
+    .options = furrr::furrr_options(seed = 2026)
   )
 })
 
@@ -281,7 +293,8 @@ with_progress({
       #progress bar update
       p()  
       res
-    }
+    },
+    .options = furrr::furrr_options(seed = 2026)
   )
 })
 
@@ -311,7 +324,8 @@ with_progress({
       #progress bar update
       p()  
       res
-    }
+    },
+    .options = furrr::furrr_options(seed = 2026)
   )
 })
 
@@ -333,17 +347,23 @@ grid_rw_q <- crossing(
 with_progress({
   p <- progressor(along = 1:nrow(grid_rw_q))
   
-  rw_q_list <- future_pmap(
-    list(grid_rw_q$country, grid_rw_q$tau, grid_rw_q$target, grid_rw_q$horizon),
-    function(country, tau, target, horizon) {
-      suppressWarnings({
-        res <- fit_easyUQ_idr(df_rw_q, country, tau, target, horizon)  
-      })
-      
-      #progress bar update
-      p()  
-      res
-    }
+  rw_q_list <- suppressMessages(
+    future_pmap(
+      list(grid_rw_q$country,
+           grid_rw_q$tau,
+           grid_rw_q$target,
+           grid_rw_q$horizon),
+      function(country, tau, target, horizon) {
+        
+        suppressWarnings({
+          res <- fit_easyUQ_idr(df_rw_q, country, tau, target, horizon)
+        })
+        
+        p()
+        res
+      },
+      .options = furrr::furrr_options(seed = NULL)
+    )
   )
 })
 
@@ -363,17 +383,23 @@ grid_ar1_q <- crossing(
 with_progress({
   p <- progressor(along = 1:nrow(grid_ar1_q))
   
-  ar1_q_list <- future_pmap(
-    list(grid_ar1_q$country, grid_ar1_q$tau, grid_ar1_q$target, grid_ar1_q$horizon),
-    function(country, tau, target, horizon) {
-      suppressWarnings({
-        res <- fit_easyUQ_idr(df_ar1_q, country, tau, target, horizon)  
-      })
-      
-      #progress bar update
-      p()  
-      res
-    }
+  ar1_q_list <- suppressMessages(
+    future_pmap(
+      list(grid_ar1_q$country,
+           grid_ar1_q$tau,
+           grid_ar1_q$target,
+           grid_ar1_q$horizon),
+      function(country, tau, target, horizon) {
+        
+        suppressWarnings({
+          res <- fit_easyUQ_idr(df_ar1_q, country, tau, target, horizon)
+        })
+        
+        p()
+        res
+      },
+      .options = furrr::furrr_options(seed = NULL)
+    )
   )
 })
 
@@ -393,18 +419,23 @@ grid_arima1_1_0_q <- crossing(
 with_progress({
   p <- progressor(along = 1:nrow(grid_arima1_1_0_q))
   
-  arima1_1_0_q_list <- future_pmap(
-    list(grid_arima1_1_0_q$country, grid_arima1_1_0_q$tau, 
-         grid_arima1_1_0_q$target, grid_arima1_1_0_q$horizon),
-    function(country, tau, target, horizon) {
-      suppressWarnings({
-        res <- fit_easyUQ_idr(df_arima1_1_0_q, country, tau, target, horizon)  
-      })
-      
-      #progress bar update
-      p()  
-      res
-    }
+  arima1_1_0_q_list <- suppressMessages(
+    future_pmap(
+      list(grid_arima1_1_0_q$country,
+           grid_arima1_1_0_q$tau,
+           grid_arima1_1_0_q$target,
+           grid_arima1_1_0_q$horizon),
+      function(country, tau, target, horizon) {
+        
+        suppressWarnings({
+          res <- fit_easyUQ_idr(df_arima1_1_0_q, country, tau, target, horizon)
+        })
+        
+        p()
+        res
+      },
+      .options = furrr::furrr_options(seed = NULL)
+    )
   )
 })
 
@@ -424,18 +455,23 @@ grid_arima_auto_q <- crossing(
 with_progress({
   p <- progressor(along = 1:nrow(grid_arima_auto_q))
   
-  arima_auto_q_list <- future_pmap(
-    list(grid_arima_auto_q$country, grid_arima_auto_q$tau, 
-         grid_arima_auto_q$target, grid_arima_auto_q$horizon),
-    function(country, tau, target, horizon) {
-      suppressWarnings({
-        res <- fit_easyUQ_idr(df_arima_auto_q, country, tau, target, horizon)  
-      })
-      
-      #progress bar update
-      p()  
-      res
-    }
+  arima_auto_q_list <- suppressMessages(
+    future_pmap(
+      list(grid_arima_auto_q$country,
+           grid_arima_auto_q$tau,
+           grid_arima_auto_q$target,
+           grid_arima_auto_q$horizon),
+      function(country, tau, target, horizon) {
+        
+        suppressWarnings({
+          res <- fit_easyUQ_idr(df_arima_auto_q, country, tau, target, horizon)
+        })
+        
+        p()
+        res
+      },
+      .options = furrr::furrr_options(seed = NULL)
+    )
   )
 })
 
@@ -468,7 +504,8 @@ pred_weo_filtered <- pred_weo %>%
 (pred_weo_eval <- pred_weo_filtered %>% 
     summarise_eval())
 
-pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -508,7 +545,8 @@ pred_rw_filtered <- pred_rw %>%
 (pred_rw_eval <- pred_rw_filtered %>% 
     summarise_eval())
 
-pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -548,7 +586,8 @@ pred_ar1_filtered <- pred_ar1 %>%
 (pred_ar1_eval <- pred_ar1_filtered %>% 
     summarise_eval())
 
-pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -588,7 +627,8 @@ pred_arima1_1_0_filtered <- pred_arima1_1_0 %>%
 (pred_arima1_1_0_eval <- pred_arima1_1_0_filtered %>% 
     summarise_eval())
 
-pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -628,7 +668,8 @@ pred_arima_auto_filtered <- pred_arima_auto %>%
 (pred_arima_auto_eval <- pred_arima_auto_filtered %>% 
     summarise_eval())
 
-pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -669,7 +710,8 @@ pred_rw_q_filtered <- pred_rw_q %>%
 (pred_rw_q_eval <- pred_rw_q_filtered %>% 
     summarise_eval())
 
-pred_rw_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_rw_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -709,7 +751,8 @@ pred_ar1_q_filtered <- pred_ar1_q %>%
 (pred_ar1_q_eval <- pred_ar1_q_filtered %>% 
     summarise_eval())
 
-pred_ar1_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_ar1_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -749,7 +792,8 @@ pred_arima1_1_0_q_filtered <- pred_arima1_1_0_q %>%
 (pred_arima1_1_0_q_eval <- pred_arima1_1_0_q_filtered %>% 
     summarise_eval())
 
-pred_arima1_1_0_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima1_1_0_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
@@ -789,7 +833,8 @@ pred_arima_auto_q_filtered <- pred_arima_auto_q %>%
 (pred_arima_auto_q_eval <- pred_arima_auto_q_filtered %>% 
     summarise_eval())
 
-pred_arima_auto_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%print(n = Inf)
+pred_arima_auto_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>% 
+  make_latex_block_string()
 
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")

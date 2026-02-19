@@ -532,7 +532,7 @@ write.csv(pred_weo_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
-##Evaluation of prediction on dataset Random Walk (quarterly, generated)
+##Evaluation of prediction on dataset Random Walk (annual, generated)
 
 #PAVA correction
 pred_rw <- pava_correct_df(pred_rw)
@@ -572,7 +572,7 @@ write.csv(pred_rw_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
-##Evaluation of prediction on dataset ARIMA(1,0,0) (quarterly, generated)
+##Evaluation of prediction on dataset ARIMA(1,0,0) (annual, generated)
 
 #PAVA correction
 pred_ar1 <- pava_correct_df(pred_ar1)
@@ -612,7 +612,7 @@ write.csv(pred_ar1_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
-##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
+##Evaluation of prediction on dataset ARIMA(1,1,0) (annual, generated)
 
 #PAVA correction
 pred_arima1_1_0 <- pava_correct_df(pred_arima1_1_0)
@@ -652,7 +652,7 @@ write.csv(pred_arima1_1_0_eval, paste0(
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
-##Evaluation of prediction on dataset ARIMA(1,1,0) (quarterly, generated)
+##Evaluation of prediction on dataset ARIMA auto (annual, generated)
 
 #PAVA correction
 pred_arima_auto <- pava_correct_df(pred_arima_auto)
