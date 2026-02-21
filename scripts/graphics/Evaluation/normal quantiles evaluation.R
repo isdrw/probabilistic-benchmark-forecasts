@@ -1005,8 +1005,6 @@ coverage_arima_bic <- tribble(
   "ARIMA_BIC", "GDP", "MeanEst_VARunb", "Spring_next",    0.8, 0.774
 )
 
-#==========================================================
-
 #combine all
 coverage_all <- bind_rows(
   coverage_ar1,
@@ -1015,6 +1013,19 @@ coverage_all <- bind_rows(
   coverage_weo,
   coverage_rw
 )
+
+#==========================================================
+#coverage analysis
+#==========================================================
+
+coverage_all %>%
+  group_by(Method, Target, Alpha) %>%
+  summarise(mean_coverage = mean(Coverage), .groups = "drop")
+
+#==========================================================
+#coverage plots
+#==========================================================
+
 
 #select nominal coverage and dataset
 selected_tau <- 0.8
@@ -1075,3 +1086,67 @@ ggplot(coverage_weo_plot_sub,
     legend.position = "bottom",
     panel.spacing = unit(1.2, "lines")
   )
+
+#===========================================
+#coverage against all datasets on one horizon
+#============================================
+
+
+selected_horizon <- "Spring_current"
+selected_tau <- 0.8
+
+coverage_summary <- coverage_all %>%
+  filter(Horizon == selected_horizon) %>%   
+  group_by(Dataset, Target, Method, Alpha) %>%
+  summarise(
+    Coverage = mean(Coverage),
+    .groups = "drop"
+  )
+
+coverage_summary <- coverage_summary %>%
+  mutate(
+    Mean = ifelse(grepl("Mean0", Method), "Mean = 0", "Mean estimated"),
+    Variance = ifelse(grepl("VARunb", Method), "Unbiased variance", "ML variance")
+  )
+
+coverage_single <- coverage_summary %>%
+  filter(Alpha == selected_tau)
+
+ggplot(coverage_single,
+       aes(x = Dataset,
+           y = Coverage,
+           fill = Method)) +
+  
+  geom_col(position = position_dodge(width = 0.75),
+           width = 0.7) +
+  
+  geom_hline(yintercept = selected_tau,
+             linetype = "dashed",
+             color = "black",
+             size = 0.8) +
+  
+  facet_wrap(~Target, nrow = 1, scales = "fixed") +
+  
+  scale_fill_brewer(palette = "Set2") +
+  
+  labs(
+    x = "Dataset",
+    y = paste0("Empirical Coverage"),
+    title = paste0("Empirical Coverage Across Datasets (",
+                   selected_horizon,
+                   ", τ = ", selected_tau, ")"),
+    fill = "Method"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom",
+    panel.spacing = unit(1.2, "lines")
+  ) + 
+  coord_cartesian(ylim = c(min(coverage_single$Coverage), selected_tau + 0.15))
+
+
+
+
+
