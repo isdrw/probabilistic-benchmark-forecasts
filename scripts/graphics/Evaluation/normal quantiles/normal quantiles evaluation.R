@@ -1,9 +1,16 @@
 
+library(arrow)
 library(tidyverse)
 library(ggplot2)
 library(patchwork)
 
 #==========================================================
+
+#data from Eval CSV
+eval_df <- read.csv("data/Evaluation results/evaluation_table.CSV", sep = ";")
+
+#=========================================================
+
 #enter data manually
 #WEO CPI data
 weo_cpi <- tribble(
@@ -1147,7 +1154,16 @@ ggplot(coverage_single,
   ) + 
   coord_cartesian(ylim = c(min(coverage_single$Coverage), selected_tau + 0.15))
 
+#=================================================================
+#
+#=================================================================
 
 
 
-
+eval_df %>% 
+  filter(method == "gauss_quantiles_prediction", tau == 0.8) %>%
+  group_by(variation, target) %>%
+  summarise(
+    WIS_mean = mean(WIS_58),
+    .groups = "drop"
+  ) 
