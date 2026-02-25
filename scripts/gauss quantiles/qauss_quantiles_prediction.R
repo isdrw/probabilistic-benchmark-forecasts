@@ -286,7 +286,7 @@ with_progress({
     list(grid_ar1$country, grid_ar1$tau, grid_ar1$target, grid_ar1$horizon),
     function(country, tau, target, horizon) {
       suppressWarnings({
-        res <- fit_gauss(df_ar1, country, tau, target, horizon, fit_mean = FALSE, unbiased_sd = TRUE)  
+        res <- fit_gauss(df_ar1, country, tau, target, horizon, fit_mean = TRUE, unbiased_sd = TRUE)  
       })
       
       #progress bar update
@@ -603,11 +603,11 @@ pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M")
 write.csv(pred_ar1, paste0(
-  "results/gauss_quantiles_prediction/unbiased VAR est/mean 0 assumption/gauss_prediction_ar1_", 
+  "results/gauss_quantiles_prediction/unbiased VAR est/fitted_mean/gauss_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/gauss_quantiles_prediction/unbiased VAR est/mean 0 assumption/gauss_prediction_ar1_eval_", 
+  "results/gauss_quantiles_prediction/unbiased VAR est/fitted_mean/gauss_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================

@@ -5,6 +5,8 @@ gc()
 library(arrow)
 library(dplyr)
 library(tidyr)
+library(slider)
+library(ggplot2)
 
 source("scripts/utilities/utility_functions.R")
 source("scripts/utilities/data_transformation_functions.R")

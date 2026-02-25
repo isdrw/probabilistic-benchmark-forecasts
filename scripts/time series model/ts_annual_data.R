@@ -19,7 +19,7 @@ df_oecd <- load_and_prepare_oecd_data()
 
 #Function to fit ARIMA model either with given order or with automatic
 #fitting of best order according to BIC
-fit_arima <- function(df, country, target, R = 44,
+fit_arima <- function(df, country, target,
                       order = c(1,0,0), auto = FALSE){
   
   out_list <- list()
@@ -66,7 +66,7 @@ fit_arima <- function(df, country, target, R = 44,
     
     fit <- tryCatch({
       if (!auto){
-        arima(ts_data, order = order)
+        arima(ts_data, order = order, include.mean = FALSE)
       } 
       else{
         auto.arima(ts_data, ic = "bic")
@@ -85,13 +85,15 @@ fit_arima <- function(df, country, target, R = 44,
       n_ahead <- s$n_ahead
       horizon <- s$horizon
       
-      
+      #predict n-ahead values
       pred <- tryCatch({
         predict(fit, n.ahead = n_ahead)$pred
       }, error = function(e) NULL)
       
+      #check for valid prediction
       if (is.null(pred)) next
       
+      #calculate target year and quarter
       origin_index <- 4 * end_year + end_quarter
       h_steps <- 1:n_ahead
       target_index <- origin_index + h_steps
@@ -155,7 +157,7 @@ pred_1_0_0 <- grid %>%
   mutate(
     results = pmap(
       list(country, target),
-      ~ fit_arima(df_oecd, ..1, ..2)
+      ~ fit_arima(df_oecd, ..1, ..2, order = c(1,0,0))
     )
   ) %>%
   pull(results) %>%
@@ -190,6 +192,10 @@ write.csv(pred_1_1_0, "data/processed/point predictions/point_predictions_arima1
 write.csv(pred_arima_auto, "data/processed/point predictions/point_predictions_arima_auto.csv", row.names = FALSE)
 
 
-
-
+test <- pred_1_0_0 %>% 
+  filter(country == "JPN", target == "tv_cpi", horizon == 0.5) %>%
+  select(target_year, prediction, truth_value)
+plot(test$target_year, test$prediction, col = "blue")
+points(test$target_year, test$truth_value, col = "black")
+lines(test$target_year, rep(0, length(test$target_year)))
 

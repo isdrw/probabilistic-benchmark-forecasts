@@ -46,7 +46,7 @@ fit_arima <- function(df, country, target, R = 44,
     
     fit <- tryCatch({
       if (!auto){
-        arima(ts_data, order = order)
+        arima(ts_data, order = order, include.mean = FALSE)
       } else {
         auto.arima(ts_data, ic = "bic")
       }
