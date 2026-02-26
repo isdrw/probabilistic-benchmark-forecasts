@@ -46,6 +46,15 @@ plot_data_quantiles <- agg_ext_window_data %>%
   )
 
 
+#plot data for mean reversion illustration
+plot_data_mean <- agg_ext_window_data %>%
+  filter(country == "JPN",
+         horizon == 1.5) %>%
+  filter(is.finite(target_year),
+         is.finite(pred_cpi),
+         is.finite(tv_cpi)) %>%
+  arrange(target_year)
+
 #plot quantiles
 ggplot(plot_data_quantiles, aes(x = target_year)) +
   # Quantile band (10%–90%)
@@ -78,17 +87,6 @@ ggplot(plot_data_quantiles, aes(x = target_year)) +
     x = "Target year",
     title = "Normal Quantile Band for AR(1) predictions",
   )
-
-
-#plot data for mean reversion illustration
-plot_data_mean <- agg_ext_window_data %>%
-  filter(country == "JPN",
-         horizon == 1.5) %>%
-  filter(is.finite(target_year),
-         is.finite(pred_cpi),
-         is.finite(tv_cpi)) %>%
-  arrange(target_year)
-
 
 
 ggplot(plot_data_mean, aes(x = target_year)) +

@@ -320,51 +320,51 @@ data_all <- bind_rows(
 #WIS mean summary over horizon dataset target combination
 #and average relative absolute deviation for dataset target combination
 
-WIS_eval <- data_all %>% 
-  group_by(Dataset, Horizon, Target) %>% 
+WIS_eval <- eval_df %>% 
+  group_by(dataset, horizon, target) %>% 
   mutate(
-    mean_WIS = mean(WIS),
+    mean_WIS = mean(WIS_all),
     WIS_rel_MAD = mean(abs(WIS - mean_WIS)) / mean_WIS,
     WIS_max_rel_dev = max(abs(WIS - mean_WIS)) / mean_WIS
   ) %>% 
   ungroup() %>%
-  group_by(Dataset, Target) %>%
+  group_by(dataset, target) %>%
   mutate(
     WIS_rel_dispersion_target = mean(WIS_rel_MAD)
   ) %>% 
   ungroup()
 
 WIS_eval %>% 
-  group_by(Dataset, Target) %>%
+  group_by(dataset, target) %>%
   summarise(
     avg_rel_abs_dev = first(WIS_rel_dispersion_target),
     .groups = "drop"
   )
 
 #finding best method
-WIS_best <- data_all %>% 
-  group_by(Target, Dataset, Method) %>% 
+WIS_best <- eval_df %>% 
+  group_by(target, dataset, method) %>% 
   mutate(
-    WIS_sum = sum(WIS)
+    WIS_sum = sum(WIS_all)
   ) %>%
   ungroup() %>%
-  group_by(Target, Dataset) %>%
+  group_by(target, dataset) %>%
   mutate(
-    Method_best = Method[which.min(WIS_sum)]
+    method_best = method[which.min(WIS_sum)]
   ) %>% 
   ungroup()
 
 WIS_best %>%
-  group_by(Target, Dataset) %>%
+  group_by(target, dataset) %>%
   summarise(
-    Method_best = first(Method_best),
+    method_best = first(method_best),
     .groups = "drop"
   )
 #order for horizons
-data_all$Horizon <- factor(
-  data_all$Horizon,
-  levels = c("Fall_current", "Spring_current",
-             "Fall_next", "Spring_next")
+data_all$horizon <- factor(
+  data_all$horizon,
+  levels = c("0.0", "0.5",
+             "1.0", "1.5")
 )
 
 #=============================================================================
@@ -373,29 +373,28 @@ data_all$Horizon <- factor(
 selected_dataset <- "WEO"
 
 data_filtered <- data_all %>%
-  filter(Dataset == selected_dataset) %>%
+  filter(dataset == selected_dataset) %>%
   mutate(
-    Horizon = factor(Horizon, levels = c("Fall_current", "Spring_current",
-                                         "Fall_next", "Spring_next")),
+    horizon = factor(horizon, levels = c(0.0, 0.5, 1.0, 1.5)),
     # Recode to nicer x-axis labels
-    Horizon = fct_recode(Horizon,
-                         "Fall, current"   = "Fall_current",
-                         "Spring, current" = "Spring_current",
-                         "Fall, next"      = "Fall_next",
-                         "Spring, next"    = "Spring_next"),
-    Target = factor(Target, levels = c("CPI", "GDP")),
-    Method = factor(Method)
+    horizon = fct_recode(horizon,
+                         "Fall, current"   = "0.0",
+                         "Spring, current" = "0.5",
+                         "Fall, next"      = "1.0",
+                         "Spring, next"    = "1.5"),
+    target = factor(target, levels = c("cpi", "gdp")),
+    method = factor(method)
   ) %>%
   droplevels()
 
 # Compute mean WIS per horizon (optional horizontal lines)
 horizon_means <- data_filtered %>%
-  group_by(Target, Horizon) %>%
+  group_by(target, horizon) %>%
   summarise(mean_WIS = mean(WIS, na.rm = TRUE), .groups = "drop")
 
 # Plot with lines and points
 ggplot(data_filtered,
-       aes(x = Horizon, y = WIS, color = Method, shape = Method, group = Method, linetype = Method)) +
+       aes(x = horizon, y = WIS, color = method, shape = method, group = method, linetype = method)) +
   
   geom_line(size = 1.25) +     # lines connecting points
   geom_point(size = 3) +    # points at each horizon
@@ -429,19 +428,19 @@ ggplot(data_filtered,
 selected_dataset <- "WEO"
 
 data_rel <- data_all %>%
-  filter(Dataset == selected_dataset) %>%
+  filter(dataset == selected_dataset) %>%
   mutate(
-    Horizon = factor(Horizon, levels = c("Fall_current", "Spring_current",
-                                         "Fall_next", "Spring_next")),
-    Horizon = fct_recode(Horizon,
-                         "Fall, current"   = "Fall_current",
-                         "Spring, current" = "Spring_current",
-                         "Fall, next"      = "Fall_next",
-                         "Spring, next"    = "Spring_next"),
-    Target = factor(Target, levels = c("CPI", "GDP")),
-    Method = factor(Method)
+    horizon = factor(horizon, levels = c(0.0, 0.5, 1.0, 1.5)),
+    # Recode to nicer x-axis labels
+    horizon = fct_recode(horizon,
+                         "Fall, current"   = "0.0",
+                         "Spring, current" = "0.5",
+                         "Fall, next"      = "1.0",
+                         "Spring, next"    = "1.5"),
+    target = factor(target, levels = c("cpi", "gdp")),
+    method = factor(method)
   ) %>%
-  group_by(Target, Horizon) %>%
+  group_by(target, horizon) %>%
   mutate(rel_WIS = WIS / mean(WIS, na.rm = TRUE)) %>%
   ungroup() %>%
   droplevels()
@@ -487,39 +486,36 @@ ggplot(data_rel,
 
 selected_horizon <- "Spring, next"
 
-desired_levels <- c("WEO", "RW", "AR1", "ARIMA(1,1,0)", "ARIMA_BIC")
+desired_levels <- c("WEO", "Random Walk", "AR(1)", "ARIMA(1,1,0)", "ARIMA BIC")
 
-wis_h1 <- data_all %>%
+wis_h1 <- eval_df %>%
+  filter(method == "gauss_quantiles_prediction") %>%
   mutate(
-    # Keep Horizon in your preferred internal order
-    Horizon = factor(Horizon, levels = c("Fall_current", "Spring_current",
-                                         "Fall_next", "Spring_next")),
-    # Recode to nicer x-axis labels
-    Horizon = fct_recode(Horizon,
-                         "Fall, current"   = "Fall_current",
-                         "Spring, current" = "Spring_current",
-                         "Fall, next"      = "Fall_next",
-                         "Spring, next"    = "Spring_next"),
-    Target = factor(Target, levels = c("CPI", "GDP")),
-    Method = factor(Method),
-    # <<< Enforce Dataset order here >>>
-    Dataset = fct_relevel(Dataset, desired_levels)
+    horizon = factor(horizon,
+                     levels = c(0.0, 0.5, 1.0, 1.5),
+                     labels = c("Fall, current",
+                                "Spring, current",
+                                "Fall, next",
+                                "Spring, next")),
+    target = factor(target, levels = c("cpi", "gdp")),
+    method = factor(method),
+    dataset = fct_relevel(dataset, desired_levels)
   ) %>%
-  filter(Horizon == selected_horizon) %>%
+  filter(horizon == selected_horizon) %>%
   droplevels()
 
 
 
 ggplot(
   wis_h1,
-  aes(x = Dataset, y = WIS, fill = Method)
+  aes(x = dataset, y = WIS_all, fill = variation)
 ) +
   geom_col(
     position = position_dodge(width = 0.8),
     width = 0.7,
     color = "white"
   ) +
-  facet_wrap(~ Target, nrow = 1, scales = "fixed") +
+  facet_wrap(~ target, nrow = 1, scales = "fixed") +
   labs(
     x = "Dataset",
     y = "WIS",
@@ -1161,9 +1157,9 @@ ggplot(coverage_single,
 
 
 eval_df %>% 
-  filter(method == "gauss_quantiles_prediction", tau == 0.8) %>%
+  filter(method == "gauss_quantiles_prediction", tau %in% c(0.5,0.8) )  %>%
   group_by(variation, target) %>%
   summarise(
-    WIS_mean = mean(WIS_58),
+    mean_WIS = mean(WIS_all),
     .groups = "drop"
   ) 
