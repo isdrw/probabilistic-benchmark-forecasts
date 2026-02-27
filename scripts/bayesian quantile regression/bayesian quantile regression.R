@@ -134,7 +134,7 @@ fit_bqr <- function(df, country, tau, target, h){
         y ~ lagged_tv + pred_vec, 
         data = data_bqr, 
         quantile = (1 - tau) / 2, 
-        ndraw = 2000,
+        ndraw = 5000,
         normal.approx = FALSE
       )
 
@@ -149,7 +149,7 @@ fit_bqr <- function(df, country, tau, target, h){
         y ~ lagged_tv + pred_vec, 
         data = data_bqr, 
         quantile = (1 + tau) / 2, 
-        ndraw = 2000,
+        ndraw = 5000,
         normal.approx = FALSE
       )
 
@@ -163,8 +163,8 @@ fit_bqr <- function(df, country, tau, target, h){
       next
     }
     
-    sum_l <- tryCatch(summary(fit_l, burnin = 200), error = function(e) NULL)
-    sum_u <- tryCatch(summary(fit_u, burnin = 200), error = function(e) NULL)
+    sum_l <- tryCatch(summary(fit_l, burnin = 1000), error = function(e) NULL)
+    sum_u <- tryCatch(summary(fit_u, burnin = 1000), error = function(e) NULL)
     
     betadraws_l <- sum_l[[1]]$betadraw
     betadraws_u <- sum_u[[1]]$betadraw
@@ -556,11 +556,11 @@ pred_weo_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_weo, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_weo_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_weo_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_weo_eval, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_weo_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_weo_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #===========================================================
@@ -596,11 +596,11 @@ pred_rw_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save pred_weoiction dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_rw, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_rw_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_rw_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_rw_eval, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_rw_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_rw_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -637,11 +637,11 @@ pred_ar1_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_ar1, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_ar1_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_ar1_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_ar1_eval, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_ar1_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_ar1_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -678,11 +678,11 @@ pred_arima1_1_0_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima1_1_0, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_arima1_1_0_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_arima1_1_0_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima1_1_0_eval, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_arima1_1_0_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_arima1_1_0_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #==============================================================================
@@ -719,11 +719,11 @@ pred_arima_auto_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima_auto, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_arima_auto_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_arima_auto_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima_auto_eval, paste0(
-  "results/bayesian_quantile_regression/bqr_prediction_arima_auto_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/bqr_prediction_arima_auto_eval_", 
   timestamp, ".csv"), row.names = FALSE)
 
 #=======================================================================
