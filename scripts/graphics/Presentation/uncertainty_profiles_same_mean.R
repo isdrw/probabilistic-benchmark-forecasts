@@ -13,8 +13,8 @@ x <- seq(-3, 7, length.out = 1000)
 df <- data.frame(
   x = rep(x, 2),
   density = c(
-    dnorm(x, mean_forecast, sd_low_uncertainty),
-    dnorm(x, mean_forecast, sd_high_uncertainty)
+    dnorm(x, mean_forecast, sd_high_uncertainty),
+    dnorm(x, mean_forecast, sd_low_uncertainty)
   ),
   Scenario = rep(
     c("Volatile Environment (High Uncertainty)",
@@ -64,3 +64,4 @@ ggplot(df, aes(x = x, y = density, color = Scenario)) +
   theme(
     legend.position = "bottom"
   )
+

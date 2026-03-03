@@ -61,7 +61,7 @@ fit_arima <- function(df, country, target, R = 44,
       next
     } 
     
-    # ---- FIXED 7-QUARTER FORECAST ----
+
     n_ahead <- 7
     h_steps <- 1:n_ahead
     
@@ -79,7 +79,7 @@ fit_arima <- function(df, country, target, R = 44,
     ty <- floor(target_index / 4)
     ty[tq == 4] <- ty[tq == 4] - 1
     
-    # NEW horizon mapping
+
     horizon_values <- (h_steps - 1) * 0.25
     
     tv_end <- min(i + n_ahead, nrow(data_by_country))

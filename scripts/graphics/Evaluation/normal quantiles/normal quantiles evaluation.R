@@ -122,21 +122,20 @@ ggplot(data_filtered,
 
 selected_dataset <- "WEO"
 
-data_rel <- data_all %>%
+data_rel <- eval_df %>%
   filter(dataset == selected_dataset) %>%
   mutate(
-    horizon = factor(horizon, levels = c(0.0, 0.5, 1.0, 1.5)),
-    # Recode to nicer x-axis labels
-    horizon = fct_recode(horizon,
-                         "Fall, current"   = "0.0",
-                         "Spring, current" = "0.5",
-                         "Fall, next"      = "1.0",
-                         "Spring, next"    = "1.5"),
+    horizon = factor(horizon,
+                     levels = c(0.0, 0.5, 1.0, 1.5),
+                     labels = c("Fall, current",
+                                "Spring, current",
+                                "Fall, next",
+                                "Spring, next")),
     target = factor(target, levels = c("cpi", "gdp")),
     method = factor(method)
   ) %>%
   group_by(target, horizon) %>%
-  mutate(rel_WIS = WIS / mean(WIS, na.rm = TRUE)) %>%
+  mutate(rel_WIS = WIS_all / mean(WIS_all, na.rm = TRUE)) %>%
   ungroup() %>%
   droplevels()
 
@@ -157,14 +156,14 @@ eval_df %>%
 
 #Plot
 ggplot(data_rel,
-       aes(x = Horizon, y = rel_WIS, color = Method, shape = Method,
-           group = Method, linetype = Method)) +
+       aes(x = horizon, y = rel_WIS, color = method, shape = method,
+           group = method, linetype = method)) +
   
   geom_line(size = 1.25) +
   geom_point(size = 3) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "black", linewidth = 0.8) +
   
-  facet_wrap(~Target, nrow = 1, scales = "fixed") +
+  facet_wrap(~target, nrow = 1, scales = "fixed") +
   
   labs(
     x = "Horizon",
@@ -178,6 +177,7 @@ ggplot(data_rel,
   scale_color_brewer(palette = "Set2") +
   scale_shape_manual(values = c(16, 17, 15, 18)) +
   scale_linetype_manual(values = c("dashed", "solid", "dotted", "dotdash")) +
+
   
   theme_minimal(base_size = 14) +
   theme(
