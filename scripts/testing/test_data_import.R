@@ -79,3 +79,17 @@ tmp<-df_ar1 %>% group_by(country) %>% group_modify(~{
     ) %>%
     arrange(tq_index)
 })
+
+df_rw <- load_and_prepare_RW_data() %>% aggregate_to_annual_input()
+
+df_rw %>% mutate(
+  sqr_err_cpi = (pred_cpi-tv_cpi)**2,
+  sqr_err_gdp = (pred_gdp-tv_gdp)**2
+) %>% group_by(
+  horizon  
+) %>% summarise(
+  MSFE_cpi = mean(sqr_err_cpi, na.rm = TRUE),
+  MSFE_gdp = mean(sqr_err_gdp, na.rm = TRUE),
+  .groups = "drop"
+)
+

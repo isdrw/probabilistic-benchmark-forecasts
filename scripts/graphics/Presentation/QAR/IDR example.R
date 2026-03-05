@@ -5,14 +5,12 @@ library(tidyr)
 set.seed(66)
 
 #DGP 
-n <- 5002
+n <- 5000
 x <- runif(n, -2, 2)
 y <- x + rnorm(n)
 #===============================================
 #Fit EasyUQ model
 
-x <- x[3:n]
-y <- y[3:n]
 x_order <- order(x)
 x <- x[x_order]
 y <- y[x_order]
@@ -61,7 +59,8 @@ ggplot(df_long, aes(x = y, y = F, color = curve)) +
       "Data generating process:  " *
         x %~% U(-2,2) * "," ~
         y == x + epsilon * "," ~
-        epsilon %~% N(0,1)
+        epsilon %~% N(0,1) * "," ~
+        "n" == 5000
     )
   ) +
   theme_minimal(base_size = 16) +
