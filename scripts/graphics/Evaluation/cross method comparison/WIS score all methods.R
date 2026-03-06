@@ -111,8 +111,9 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = variation, group = variati
 #===========================================================
 #average mWIS over all datasets for each horizon
 
-selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC")
-selected_target <- "cpi"
+selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
+selected_target <- "gdp"
+selected_frequency <- "quarterly"
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
@@ -127,7 +128,7 @@ selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0"
 
 df_plot <- eval_df %>% 
   filter(
-    frequency == "annually", 
+    frequency == selected_frequency, 
     dataset %in% selected_dataset,
     target == selected_target,
     method %in% selected_methods,
@@ -246,9 +247,10 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = variation)) +
 #======================================================================
 #Coverage over all datasets for each horizon
 
-selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC")
+selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
 selected_target <- "gdp"
-selected_tau <- 0.5
+selected_tau <- 0.8
+selected_frequency <- "quarterly"
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
@@ -263,7 +265,7 @@ selected_variation <- c("", "fitted_mean", "fitted_mean & unbiased VAR", "mean0"
 #filter eval dataset 
 df_plot_2 <- eval_df %>% 
   filter(
-    frequency == "annually", 
+    frequency == selected_frequency, 
     dataset %in% selected_dataset,
     target == selected_target,
     method %in% selected_methods,
