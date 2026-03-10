@@ -7,7 +7,7 @@ library(dplyr)
 #==========================================================
 
 #data from Eval CSV
-eval_df <- read.csv("data/Evaluation results/evaluation_table.CSV", sep = ";")
+eval_df <- read.csv("data/Evaluation results/evaluation_table5000.CSV", sep = ";")
 
 #==========================================================
 #Renaming for labels
@@ -58,14 +58,17 @@ horizon_order <- c(
 #===========================================================
 #all WIS over horizons for selected Dataset
 
-selected_dataset <- c("AR(1)")
+selected_dataset <- c("ARIMA")
 selected_target <- "cpi"
 
 selected_methods <- c(
-  "gauss_quantiles_prediction"
+  "empirical_quantiles_prediction",
+  "EasyUQ_idr",
+  "linear_quantile_regression",
+  "bayesian_quantile_regression"
 )
 
-selected_variation <- c("" ,"fitted_mean", "mean0")
+selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0", "mean0 & unbiased VAR")
 
 
 df_plot <- eval_df %>% 
@@ -87,19 +90,17 @@ df_plot <- eval_df %>%
   )
 
 
-#plot
-
-ggplot(df_plot, aes(x = horizon, y = WIS_all, color = variation, group = variation)) +
+#plot point-lines
+ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
   geom_line(size = 1.1, linetype = "dotted") +
   geom_point(size = 4.5) +
   scale_color_brewer(palette = "Set2") +
   labs(
     title = "Mean Weighted Interval Score",
-    subtitle = paste("Point Forecast Source:", selected_dataset, 
-                     "| Target:", df_plot$target, "| Method: Normal Quantiles"),
+    subtitle = paste("Point Forecast Source:", df_plot$dataset," | Target:", df_plot$target),
     x = "Forecast Origin",
     y = "mWIS",
-    color = "Variation"
+    color = "Method"
   ) +
   theme_minimal(base_size = 15) +
   theme(
@@ -110,17 +111,16 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = variation, group = variati
 
 #===========================================================
 #average mWIS over all datasets for each horizon
-
 selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
 selected_target <- "gdp"
-selected_frequency <- "quarterly"
+selected_frequency <- "annually"
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
-  "EasyUQ_idr",
-  "linear_quantile_regression",
-  "bayesian_quantile_regression",
-  "QAR"
+  "gauss_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction",
+  "ald_quantiles_prediction"
 )
 
 selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0", "mean0 & unbiased VAR")
@@ -147,7 +147,6 @@ df_plot <- eval_df %>%
   
 
 #plot point-lines
-
 ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
   geom_line(size = 1.1, linetype = "dotted") +
   geom_point(size = 4.5) +
@@ -157,7 +156,7 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
     subtitle = paste("All Point Forecast Sources (average)| Target:", df_plot$target),
     x = "Forecast Origin",
     y = "mWIS",
-    color = "Variation"
+    color = "Method"
   ) +
   theme_minimal(base_size = 15) +
   theme(
@@ -179,7 +178,7 @@ ggplot(df_plot, aes(x = factor(horizon), y = WIS_all, fill = method)) +
   labs(
     title = "Mean Weighted Interval Score",
     subtitle = paste("All Point Forecast Sources (average) | Target:", df_plot$target),
-    x = "Forecast Horizon",
+    x = "Forecast Origin",
     y = "mWIS",
     fill = "Method"
   ) +
@@ -196,7 +195,7 @@ ggplot(df_plot, aes(x = factor(horizon), y = WIS_all, fill = method)) +
 
 selected_dataset <- "Random Walk"
 selected_target <- "cpi"
-selected_tau <- 0.8
+selected_tau <- 0.5
 
 selected_methods <- c(
   "gauss_quantiles_prediction"
@@ -248,8 +247,8 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = variation)) +
 #Coverage over all datasets for each horizon
 
 selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
-selected_target <- "gdp"
-selected_tau <- 0.8
+selected_target <- "cpi"
+selected_tau <- 0.5
 selected_frequency <- "quarterly"
 
 selected_methods <- c(
@@ -305,3 +304,93 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = method, group = method)
     plot.title = element_text(face = "bold")
   )
 
+#===========================================================
+#average mWIS for all datasets for each horizon and one method
+selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC")
+selected_target <- "gdp"
+selected_methods <- c("empirical_quantiles_prediction",
+                      "linear_quantile_regression",
+                      "easyUQ_idr",
+                      "bayesian_quantile_regression"
+                      )
+selected_frequency <- "annually"
+
+
+selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0", "mean0 & unbiased VAR")
+
+
+df_plot <- eval_df %>% 
+  filter(
+    frequency == selected_frequency, 
+    dataset %in% selected_dataset,
+    target == selected_target,
+    method %in% selected_methods,
+    tau == 0.8,
+    variation %in% selected_variation
+  ) %>% mutate(
+    method = recode(method, !!!method_labels),
+    variation = recode(variation, !!!variation_labels),
+    dataset = recode(dataset, !!!dataset_labels),
+    horizon = recode(horizon, !!!horizon_labels),
+    target = recode(target, !!!target_labels),
+    horizon = factor(horizon, levels = horizon_order)
+  ) %>%
+  group_by(horizon, dataset, target) %>%
+  summarise(WIS_all = mean(WIS_all, na.rm = TRUE), .groups = "drop")
+
+
+
+#plot bars
+
+ggplot(df_plot, aes(x = factor(horizon), y = WIS_all, fill = dataset)) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7,
+    color = "black"
+  ) +
+  
+  scale_fill_brewer(palette = "Set2") +
+  
+  labs(
+    title = "Mean Weighted Interval Score",
+    subtitle = paste("Target:", df_plot$target,
+                     "| all Methods (average):"),
+    x = "Forecast Origin",
+    y = "mWIS",
+    fill = "Source"
+  ) +
+  
+  theme_minimal(base_size = 15) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold")
+  )
+
+
+
+
+#multi method plot
+ggplot(df_plot, aes(x = horizon, y = WIS_all, fill = dataset)) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7,
+    color = "black"
+  ) +
+  
+  scale_fill_brewer(palette = "Set2") +
+  
+  facet_wrap(~method, nrow = 1) +
+  
+  labs(
+    title = "Mean Weighted Interval Score",
+    subtitle = paste("Target:", unique(df_plot$target)),
+    x = "Forecast Origin",
+    y = "mWIS",
+    fill = "Dataset"
+  ) +
+  
+  theme_minimal(base_size = 15) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold")
+  )

@@ -60,6 +60,11 @@ y_ols  <- tail(pred_df$OLS, 1)
 y_q01  <- tail(pred_df$QAR_0.1, 1)
 y_q09  <- tail(pred_df$QAR_0.9, 1)
 
+#unconditional quantiles
+q01_uncond <- quantile(df$y, 0.1)
+q09_uncond <- quantile(df$y, 0.9)
+
+#plot
 ggplot(df, aes(x = y_lag, y = y)) +
   geom_point(alpha = 0.5, color = "black", size = 0.75) +
   
@@ -67,7 +72,20 @@ ggplot(df, aes(x = y_lag, y = y)) +
   geom_line(data = pred_df, aes(y = QAR_0.1), color = "red", size = 1.2) +
   geom_line(data = pred_df, aes(y = QAR_0.9), color = "green", size = 1.2) +
   
-  # Add labels next to lines
+  # Unconditional quantiles
+  geom_hline(yintercept = q01_uncond,
+             linetype = "dashed",
+             color = "red",
+             alpha = 0.7,
+             size = 0.9) +
+  
+  geom_hline(yintercept = q09_uncond,
+             linetype = "dashed",
+             color = "green",
+             alpha = 0.7,
+             size = 0.9) +
+  
+  # Labels for conditional lines
   annotate("text", x = x_pos, y = y_ols,
            label = "OLS",
            color = "blue", hjust = -0.1, size = 4) +
@@ -80,14 +98,27 @@ ggplot(df, aes(x = y_lag, y = y)) +
            label = expression(tau == 0.9),
            color = "green", hjust = -0.1, size = 4) +
   
+  # Labels for unconditional quantiles
+  annotate("text",
+           x = x_pos,
+           y = q01_uncond,
+           label = expression("Uncond." ~ tau == 0.1),
+           color = "red",
+           hjust = 1.1,
+           vjust = -0.5,
+           size = 4) +
+  
+  annotate("text", x = min(pred_df$y_lag),
+           y = q09_uncond,
+           label = expression("Uncond." ~ tau == 0.9),
+           color = "green", hjust = 0, vjust = -0.5, size = 4) +
+  
   labs(
     title = "Quantile Autoregression vs OLS Regression",
     x = expression(y[t-1]),
     y = expression(y[t])
   ) +
   theme_minimal() +
-  
-  # Add a bit of extra space on the right for labels
   coord_cartesian(clip = "off") +
   theme(plot.margin = margin(5.5, 40, 5.5, 5.5))
 

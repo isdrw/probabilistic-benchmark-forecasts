@@ -2,7 +2,7 @@
 library(arrow)
 library(dplyr)
 library(tidyr)
-
+library(bayesQR)
 
 
 
@@ -17,7 +17,18 @@ beta0 <- 0.34
 beta1 <- 2.25
 y <- beta0 + beta1 * x + theta * z + sqrt(tau2 * sigma * z) * eps
 
-bayesQR::bayesQR()
+fit_y <- bayesQR::bayesQR(y~x, ndraw = 5000)
+beta_mean0 <- mean(fit_y[[1]]$betadraw[1000:5000,1])
+beta_mean1<- mean(fit_y[[1]]$betadraw[1000:5000,2])
+
+plot(x, y)
+lines(x, beta_mean0 + beta_mean1 * x)
+lines(x, rep(quantile(y, probs = p), length(x)))
+
+
+plot(density(y))
+
+hist(y)
 
 fit <- tryCatch({
   bqr(y = y, X = as.matrix(x), p = 0.8, n_iter = 10000, burn = 2000, use_minesota = FALSE)
