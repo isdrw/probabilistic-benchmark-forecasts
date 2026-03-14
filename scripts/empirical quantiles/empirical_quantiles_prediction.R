@@ -25,6 +25,7 @@ future::plan(multisession, workers = 4)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
+source("scripts/empirical quantiles/empirical_quantiles_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #==================================================================
@@ -65,131 +66,48 @@ df_arima_auto_q <- load_and_prepare_ARIMA_auto_data(
 )
 
 #==================================================================
+#absolute prediction errors
 
-#calc predictions errors
 df_weo <- df_weo %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_rw <- df_rw %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_ar1 <- df_ar1 %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_arima1_1_0 <- df_arima1_1_0 %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_arima_auto <- df_arima_auto %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_rw_q <- df_rw_q %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_ar1_q <- df_ar1_q %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_arima1_1_0_q <- df_arima1_1_0_q %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-#calc predictions errors
 df_arima_auto_q <- df_arima_auto_q %>% mutate(
   gdp_err = abs(tv_gdp - pred_gdp),
   cpi_err = abs(tv_cpi - pred_cpi)
 )
-
 #filter for G7 countries
 df_weo_g7 <- df_weo %>% dplyr::filter(g7 == 1)
 
 #==================================================================
-
-#function to calculate empirical quantiles and prediction interval
-fit_emp <- function(df, country, tau, target, h, R = 11){
-  
-  
-  #prediction dataframe
-  predictions <- init_output_df()
-  
-  #output list 
-  out_list <- list()
-  index <- 1
-  
-  #filter data by country and horizon and arrange by year and quarter (in case of unsorted data)
-  data_by_country <- df %>% 
-    filter(country == !!country, horizon == h) %>%
-    arrange(forecast_year, forecast_quarter)
-  
-  #loop over each target year
-  for(i in R:(nrow(data_by_country)-1)){
-    #set of abs prediction errors 
-    err_set <- data_by_country[(i-R+1):i,][[paste0(target, "_err")]]
-    
-    #replacement of NA with median
-    err_set[is.na(err_set)] <-  median(err_set)
-    
-    #forecast_year of i+1
-    forecast_year_end <- data_by_country[i+1,][["forecast_year"]]
-    
-    #forecast_quarter of i+1
-    forecast_quarter_end <- data_by_country[i+1,][["forecast_quarter"]]
-    
-    #target_year of i+1
-    target_year_end <- data_by_country[i+1,][["target_year"]]
-    
-    #target_quarter of i+1 (needed for temporal aggregation to annual data)
-    target_quarter_end <- (forecast_quarter_end - 1 + 4*h) %% 4 + 1
-    
-    #prediction of i+1
-    last_pred <- data_by_country[i+1,][[paste0("pred_", target)]]
-    
-    #truth value of i+1
-    truth_value <- data_by_country[i+1,][[paste0("tv_", target)]]
-    
-    #empirical quantiles of abs error set
-    quantile <- quantile(err_set, probs=tau, type=7, na.rm=TRUE)
-    
-    #append to output dataframe
-    pred_l <- last_pred - quantile
-    pred_u <- last_pred + quantile
-    
-    #new row
-    out_list[[index]] <- new_pred_row(
-      country = country,
-      forecast_year = forecast_year_end,
-      target_year = target_year_end,
-      target_quarter = target_quarter_end,
-      target = target,
-      horizon = h,
-      tau = tau,
-      lower_bound = pred_l,
-      upper_bound = pred_u,
-      truth_value = truth_value,
-      prediction = last_pred
-    )
-    
-    index <- index + 1
-  }
-  
-  predictions <- bind_rows(out_list)
-  
-  return(predictions)
-}
-
-#==============================================================================
 
 #create grid with all combinations
 grid_weo <- crossing(

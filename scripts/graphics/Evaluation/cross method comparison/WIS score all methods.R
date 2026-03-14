@@ -12,7 +12,7 @@ eval_df <- read.csv("data/Evaluation results/evaluation_table5000.CSV", sep = ";
 #==========================================================
 #Renaming for labels
 method_labels <- c(
-  "ald_quantiles_prediction" = "ALD",
+  "ald_quantiles_prediction" = "Asymmetric Laplace",
   "gauss_quantiles_prediction" = "Normal",
   "t_quantiles_prediction" = "Student-t",
   "skewed_t_quantiles_prediction" = "Skewed t",
@@ -63,9 +63,10 @@ selected_target <- "cpi"
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
-  "EasyUQ_idr",
-  "linear_quantile_regression",
-  "bayesian_quantile_regression"
+  "gauss_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction",
+  "ald_quantiles_prediction"
 )
 
 selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0", "mean0 & unbiased VAR")
@@ -112,7 +113,7 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
 #===========================================================
 #average mWIS over all datasets for each horizon
 selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
-selected_target <- "gdp"
+selected_target <- "cpi"
 selected_frequency <- "annually"
 
 selected_methods <- c(
@@ -122,6 +123,7 @@ selected_methods <- c(
   "skewed_t_quantiles_prediction",
   "ald_quantiles_prediction"
 )
+
 
 selected_variation <- c("" ,"fitted_mean", "fitted_mean & unbiased VAR", "mean0", "mean0 & unbiased VAR")
 
@@ -247,15 +249,15 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = variation)) +
 #Coverage over all datasets for each horizon
 
 selected_dataset <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
-selected_target <- "cpi"
+selected_target <- "gdp"
 selected_tau <- 0.5
-selected_frequency <- "quarterly"
+selected_frequency <- "annually"
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
-  "EasyUQ_idr",
   "linear_quantile_regression",
   "bayesian_quantile_regression",
+  "EasyUQ_idr",
   "QAR"
 )
 
@@ -338,7 +340,27 @@ df_plot <- eval_df %>%
   group_by(horizon, dataset, target) %>%
   summarise(WIS_all = mean(WIS_all, na.rm = TRUE), .groups = "drop")
 
-
+#plot lines
+ggplot(df_plot, aes(x = horizon, y = WIS_all, color = dataset, group = dataset)) +
+  geom_line(size = 1.1, linetype = "dotted") +
+  geom_point(size = 4.5) +
+  
+  scale_color_brewer(palette = "Set2") +
+  
+  labs(
+    title = "Mean Weighted Interval Score",
+    subtitle = paste("Target:", unique(df_plot$target),
+                     "| All Methods (average)"),
+    x = "Forecast Origin",
+    y = "mWIS",
+    color = "Source"
+  ) +
+  
+  theme_minimal(base_size = 15) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold")
+  )
 
 #plot bars
 

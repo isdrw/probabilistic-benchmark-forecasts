@@ -26,6 +26,7 @@ future::plan(multisession, workers = 4)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
+source("scripts/linear quantile regression/lqr_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 #==================================================================
 
@@ -67,104 +68,6 @@ df_arima1_1_0_q <- load_and_prepare_ARIMA1_1_0_data(
 df_arima_auto_q <- load_and_prepare_ARIMA_auto_data(
   "data/processed/point predictions/quarterly_horizons/point_predictions_arima_auto.csv"
 )
-
-#==================================================================
-
-fit_lqr <- function(df, country, tau, target, h, R=11){
-  
-  #prediction dataframe
-  predictions <- init_output_df()
-  
-  #output list 
-  out_list <- list()
-  index <- 1
-  
-  data_by_country <- df %>% 
-    filter(country == !!country, horizon == h) %>%
-    arrange(forecast_year, forecast_quarter)
-  
-  for(i in seq(1,nrow(data_by_country)-1)){
-    #predicted value vector
-    data_pred <- data_by_country[1:i,][[paste0("pred_", target)]]
-    
-    #last prediction and truth value of point after rolling window
-    last_pred <- as.numeric(data_by_country[i+1,][[paste0("pred_", target)]])
-    truth_value <- as.numeric(data_by_country[[paste0("tv_", target)]][i+1])
-    
-    #truth value vector
-    data_tv1 <- data_by_country[1:i,][[paste0("tv_", target)]]
-
-    #start date of rolling window
-    forecast_year_start <- data_by_country[1,"forecast_year"]
-    
-    #forecast year of point after rolling window for prediction
-    forecast_year_end <- data_by_country[i+1,"forecast_year"]
-    
-    #forecast quarter of point after rolling window for prediction
-    forecast_quarter_end <- as.numeric(data_by_country[i+1,"forecast_quarter"])
-    
-    #target year of point after rolling window for prediction
-    target_year_end <- data_by_country[i+1,"target_year"]
-    
-    #target quarter of point after rolling window for prediction
-    target_quarter_end <- (forecast_quarter_end + 4 * h - 1) %% 4 +1
-    
-    #skip if only NAs
-    if(all(is.na(data_pred)) || is.null(data_pred) || 
-       all(is.na(data_tv1)) || is.null(data_tv1)){
-      message("no valid data for ", country, " between ", 
-              forecast_year_start, " and ", forecast_year_end)
-      next
-    }
-    
-    #fit lqr model 
-    fit_l <- tryCatch({
-      rq(formula = data_tv1 ~ data_pred, tau = (1-tau)/2)
-    },error=function(e){
-      message("Fit failed for ", country, " (", 
-              forecast_year_start, "–", forecast_year_end, "): ", e$message)
-      NULL
-    })
-    
-    fit_u <- tryCatch({
-      rq(formula = data_tv1 ~ data_pred, tau = (1+tau)/2)
-    },error=function(e){
-      message("Fit failed for ", country, " (", 
-              forecast_year_start, "–", forecast_year_end, "): ", e$message)
-      NULL
-    })
-    
-    if(is.null(fit_l)||is.null(fit_u)){
-      next
-    }
-    
-    #prediction of quantile based on last point forecast
-    new_data <- data.frame(data_pred = last_pred)
-    pred_l <- as.numeric(predict(fit_l, newdata = new_data))
-    pred_u <- as.numeric(predict(fit_u, newdata = new_data))
-    
-    #new row
-    out_list[[index]] <- new_pred_row(
-      country = country,
-      forecast_year = forecast_year_end,
-      target_year = target_year_end,
-      target_quarter = target_quarter_end,
-      target = target,
-      horizon = h,
-      tau = tau,
-      lower_bound = pred_l,
-      upper_bound = pred_u,
-      truth_value = truth_value,
-      prediction = last_pred
-    )
-   
-    index <- index + 1
-  }
-  
-  predictions <- bind_rows(out_list)
-  
-  return(predictions)
-}
 
 #==============================================================================
 
@@ -462,7 +365,7 @@ pred_weo <- calc_IS_of_df(pred_weo)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_weo_filtered <- pred_weo %>% 
@@ -502,7 +405,7 @@ pred_rw <- calc_IS_of_df(pred_rw)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_rw_filtered <- pred_rw %>% 
@@ -542,7 +445,7 @@ pred_ar1 <- calc_IS_of_df(pred_ar1)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_ar1_filtered <- pred_ar1 %>% 
@@ -582,7 +485,7 @@ pred_arima1_1_0 <- calc_IS_of_df(pred_arima1_1_0)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_arima1_1_0_filtered <- pred_arima1_1_0 %>% 
@@ -622,7 +525,7 @@ pred_arima_auto <- calc_IS_of_df(pred_arima_auto)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_arima_auto_filtered <- pred_arima_auto %>% 
@@ -662,7 +565,7 @@ pred_rw_q <- calc_IS_of_df(pred_rw_q)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_rw_q_filtered <- pred_rw_q %>% 
@@ -702,7 +605,7 @@ pred_ar1_q <- calc_IS_of_df(pred_ar1_q)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_ar1_q_filtered <- pred_ar1_q %>% 
@@ -742,7 +645,7 @@ pred_arima1_1_0_q <- calc_IS_of_df(pred_arima1_1_0_q)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_arima1_1_0_q_filtered <- pred_arima1_1_0_q %>% 
@@ -782,7 +685,7 @@ pred_arima_auto_q <- calc_IS_of_df(pred_arima_auto_q)
 
 #check calibration by calculating coverage for all prediction intervals, 
 #forecast year 2013 and above, cumulated over all g7 countries
-#TODO Mincer Zarnowitz regression for better evaluation of calibration
+
 
 #filter prediction dataframe for specific horizon and period
 pred_arima_auto_q_filtered <- pred_arima_auto_q %>% 
