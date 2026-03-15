@@ -79,6 +79,64 @@ easyUQ_idr <- function(x, y){
   
 }
 
+#'EasyUQ isotonic distributional regression
+#'(using PAV algorithm)
+#'@param x vector of point forecast
+#'@param y vector of truth values
+#'
+#'@return F_hat = Matrix of density functions for each value of x, defined at 
+#'discrete values of y. full Rows = density function of y for given x. Columns = unique values of y
+#'
+easyUQ_idr_pav <- function(x, y){
+  
+  #sort value pairs by order of x vector
+  order_x <- order(x)
+  x <- x[order_x]
+  y <- y[order_x]
+  n <- length(y)
+  
+  #threshold values of y
+  y_grid <- sort(unique(y))
+  m <- length(y_grid)
+  #check for multiple different values
+  if(m < 2){
+    stop("y must contain at least two different non-NA values")
+  }
+  
+  if(n < 2){
+    stop("at least two values of x needed for isotonic constraints")
+  }
+  
+  
+  #objective matrix with n rows for each x and m cols for each threshold of y
+  F_hat <- matrix(NA_real_, nrow = n, ncol = m)
+  
+  index <- seq_len(n)
+  
+  for(j in seq_len(m)){
+    #value of indicator function y <= y_j (threshold)
+    z <- as.numeric(y <= y_grid[j])
+    
+    fit <- isotone::gpava(
+      z = index,
+      y = -z,
+      weights = rep(1,n)
+    )
+    
+    
+    #extract solution
+    F_hat[,j] <- - fit$x
+  }
+  
+  #return solution
+  list(
+    x = x,
+    y_grid = y_grid,
+    F_hat = F_hat
+  )
+  
+}
+
 #'function returns estimated cdfs of fitted model given vector x_new of new
 #'values via linear interpolation
 #'@param model fitted EasyUQ model from easyUQ_idr function

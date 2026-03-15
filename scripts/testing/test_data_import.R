@@ -104,3 +104,43 @@ df_rw %>% mutate(
   .groups = "drop"
 )
 
+
+
+
+set.seed(123)
+
+n <- 3000
+
+# simulate point forecasts
+x <- rnorm(n)
+
+# heteroskedastic noise (variance depends on x)
+sigma <- 0.5 + 0.5 * abs(x)
+
+# observed outcomes
+y <- x + rnorm(n, sd = sigma)
+
+# run both methods
+res_osqp  <- easyUQ_idr(x, y)
+res_gpava <- easyUQ_idr_pav(x, y)
+
+# compare solutions
+max_diff <- max(abs(res_osqp$F_hat - res_gpava$F_hat))
+
+max_diff
+
+j <- 20
+
+plot(res_osqp$x, res_osqp$F_hat[j,], type="l", col="red", lwd=2)
+lines(res_gpava$x, res_gpava$F_hat[j,], col="blue", lty=2)
+
+
+library(microbenchmark)
+
+bench <- microbenchmark(
+  OSQP  = easyUQ_idr(x, y),
+  GPAVA = easyUQ_idr_pav(x, y),
+  times = 10
+)
+
+print(bench)
