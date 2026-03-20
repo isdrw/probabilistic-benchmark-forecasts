@@ -728,9 +728,9 @@ pred_arima_auto_q_eval %>% filter(tau %in% c(0.5, 0.8)) %>%
 #save prediction and evaluation dataframe
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 write.csv(pred_arima_auto_q, paste0(
-  "results/bayesian_quantile_regression/quarterly/bqr_prediction_arima_auto_q_", 
+  "results/bayesian_quantile_regression/5000Samples/quarterly/bqr_prediction_arima_auto_q_", 
   timestamp, ".csv"), row.names = FALSE)
 
 write.csv(pred_arima_auto_q_eval, paste0(
-  "results/bayesian_quantile_regression/quarterly/bqr_prediction_arima_auto_q_eval_", 
+  "results/bayesian_quantile_regression/5000Samples/quarterly/bqr_prediction_arima_auto_q_eval_", 
   timestamp, ".csv"), row.names = FALSE)

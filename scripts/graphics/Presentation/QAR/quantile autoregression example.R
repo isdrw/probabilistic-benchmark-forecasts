@@ -1,5 +1,6 @@
 library(quantreg)
 library(ggplot2)
+library(RColorBrewer)
 
 set.seed(11)
 
@@ -64,46 +65,48 @@ y_q09  <- tail(pred_df$QAR_0.9, 1)
 q01_uncond <- quantile(df$y, 0.1)
 q09_uncond <- quantile(df$y, 0.9)
 
-#plot
+
+set2 <- brewer.pal(8, "Set2")
+
 ggplot(df, aes(x = y_lag, y = y)) +
   geom_point(alpha = 0.5, color = "black", size = 0.75) +
   
-  geom_line(data = pred_df, aes(y = OLS), color = "blue", size = 1.2) +
-  geom_line(data = pred_df, aes(y = QAR_0.1), color = "red", size = 1.2) +
-  geom_line(data = pred_df, aes(y = QAR_0.9), color = "green", size = 1.2) +
+  geom_line(data = pred_df, aes(y = OLS), color = set2[1], size = 1.2) +
+  geom_line(data = pred_df, aes(y = QAR_0.1), color = set2[2], size = 1.2) +
+  geom_line(data = pred_df, aes(y = QAR_0.9), color = set2[3], size = 1.2) +
   
   # Unconditional quantiles
   geom_hline(yintercept = q01_uncond,
              linetype = "dashed",
-             color = "red",
+             color = set2[2],
              alpha = 0.7,
-             size = 0.9) +
+             size = 1) +
   
   geom_hline(yintercept = q09_uncond,
              linetype = "dashed",
-             color = "green",
+             color = set2[3],
              alpha = 0.7,
-             size = 0.9) +
+             size = 1) +
   
   # Labels for conditional lines
   annotate("text", x = x_pos, y = y_ols,
            label = "OLS",
-           color = "blue", hjust = -0.1, size = 4) +
+           color = set2[1], hjust = -0.1, size = 4) +
   
   annotate("text", x = x_pos, y = y_q01,
            label = expression(tau == 0.1),
-           color = "red", hjust = -0.1, size = 4) +
+           color = set2[2], hjust = -0.1, size = 4) +
   
   annotate("text", x = x_pos, y = y_q09,
            label = expression(tau == 0.9),
-           color = "green", hjust = -0.1, size = 4) +
+           color = set2[3], hjust = -0.1, size = 4) +
   
   # Labels for unconditional quantiles
   annotate("text",
            x = x_pos,
            y = q01_uncond,
            label = expression("Uncond." ~ tau == 0.1),
-           color = "red",
+           color = set2[2],
            hjust = 1.1,
            vjust = -0.5,
            size = 4) +
@@ -111,7 +114,7 @@ ggplot(df, aes(x = y_lag, y = y)) +
   annotate("text", x = min(pred_df$y_lag),
            y = q09_uncond,
            label = expression("Uncond." ~ tau == 0.9),
-           color = "green", hjust = 0, vjust = -0.5, size = 4) +
+           color = set2[3], hjust = 0, vjust = -0.5, size = 4) +
   
   labs(
     title = "Quantile Autoregression vs OLS Regression",
