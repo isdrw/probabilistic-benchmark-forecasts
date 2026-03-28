@@ -9,13 +9,6 @@ library(quantreg)
 # Simulate  AR(1)
 # -------------------------
 
-selected_country = "Japan"
-selected_horizon = 1.5
-df_weo <- load_and_prepare_WEO_data() %>% filter(country == selected_country, horizon == selected_horizon)
-
-y <- df_weo %>% pull(tv_gdp)
-x <- df_weo %>% pull(pred_gdp)
-
 set.seed(11)
 
 n <- 1000
