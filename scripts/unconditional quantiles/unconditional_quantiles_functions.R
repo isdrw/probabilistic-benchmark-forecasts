@@ -115,3 +115,82 @@ pred_unc_quantiles <- function(df, country, tau, target, h = 1.0, nlag=1){
   predictions <- bind_rows(out_list)
   return(predictions)
 }
+
+#'
+#'Function iterates over df using an expanding window and calculates prediction intervals
+#'for a specified confidence level method = unconditional quantiles 
+#'produces seven step ahead prediction intervals
+#'
+#'@note Filter for horizon required to fit dataframe structure
+#'(observation-based method --> only one step ahead) 
+#'
+#'@param df dataframe with columns: country; target_year; horizon; forecast_year; 
+#'pred_gdp; pred_cpi; tv_gdp; tv_cpi
+#'@param country String of country name to be filtered 
+#'@param tau confidence level of forecast intervals
+#'@param target target variable to be filtered ("gdp", "cpi")
+#'@param max_h number of steps ahead 
+#'
+pred_unc_quantiles_q <- function(df, country, tau, target, max_h = 7, nlag = 1){
+  
+  out_list <- list()
+  index <- 1
+  
+  data_by_country <- df %>% 
+    filter(country == !!country) %>%
+    arrange(forecast_year, forecast_quarter)
+  
+  for(i in seq(1, nrow(data_by_country) - 1)){
+    
+    data <- data_by_country[1:i, ][[paste0("tv_", target)]]
+    
+    # skip if no valid data
+    if(all(is.na(data)) || is.null(data)){
+      next
+    }
+    
+    # expanding window endpoint
+    end_year <- as.numeric(data_by_country[i, "forecast_year"])
+    end_quarter <- as.numeric(data_by_country[i, "forecast_quarter"])
+    
+    # loop over horizons (1 to 7 quarters ahead)
+    for(h_step in 1:max_h){
+      
+      horizon_val <- (h_step - 1) * 0.25
+      
+      # stop if future observation does not exist
+      if(i + h_step > nrow(data_by_country)){
+        break
+      }
+      
+      # prediction
+      
+      preds_l <- quantile(data, probs = (1-tau)/2, na.rm = TRUE)
+      preds_u <- quantile(data, probs = (1+tau)/2, na.rm = TRUE)
+      
+      # truth value
+      truth_value <- data_by_country[[paste0("tv_", target)]][i + h_step]
+      target_quarter <- (end_quarter + 4 * h_step - 1) %% 4 +1
+      target_year <- end_year + ((end_quarter + h_step - 1) %/% 4)
+      
+      out_list[[index]] <- new_pred_row(
+        country = country,
+        forecast_year = end_year,
+        forecast_quarter = end_quarter,
+        target_quarter = target_quarter,
+        target_year = NA_real_,
+        horizon = horizon_val,
+        target = target,
+        tau = tau,
+        lower_bound = preds_l,
+        upper_bound = preds_u,
+        truth_value = truth_value
+      )
+      
+      index <- index + 1
+    }
+  }
+  
+  predictions <- bind_rows(out_list)
+  return(predictions)
+}

@@ -13,13 +13,6 @@
 #'
 #' 
 fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag=1) {
-  #check if library installed and loaded
-  if (!requireNamespace("quantreg", quietly = TRUE)) {
-    stop("Package 'quantreg' is required but not installed.")
-  }
-  if (!requireNamespace("dplyr", quietly = TRUE)){
-    stop("Package 'dplyr' is required but not installed.")
-  } 
   
   #check for sufficient length of obs
   if (length(obs) < nlag + 2) {

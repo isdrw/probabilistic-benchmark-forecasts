@@ -71,6 +71,7 @@ fit_arima <- function(df, country, target, R = 44,
     
     if (is.null(pred)) next
     
+    #calculate target year and quarter
     origin_index <- 4 * end_year + end_quarter
     target_index <- origin_index + h_steps
     
@@ -79,7 +80,7 @@ fit_arima <- function(df, country, target, R = 44,
     ty <- floor(target_index / 4)
     ty[tq == 4] <- ty[tq == 4] - 1
     
-
+    #for horizon mapping (1 quarter ahead = 0.0, 3 quarter ahead = 0.5...)
     horizon_values <- (h_steps - 1) * 0.25
     
     tv_end <- min(i + n_ahead, nrow(data_by_country))

@@ -53,6 +53,13 @@ horizon_labels <- c(
   "1.5" = "Spring, next"
 )
 
+horizon_labels_q <- c(
+  "0.0" = "1 Quarter ahead",
+  "0.5" = "3 Quarters ahead",
+  "1.0" = "5 Quarters ahead",
+  "1.5" = "7 Quarters ahead"
+)
+
 target_labels <- c(
   "gdp" = "GDP",
   "cpi" = "CPI"
@@ -63,6 +70,13 @@ horizon_order <- c(
   "Spring, current",
   "Fall, next",
   "Spring, next"
+)
+
+horizon_order_q <- c(
+  "1 Quarter ahead",
+  "3 Quarters ahead",
+  "5 Quarters ahead",
+  "7 Quarters ahead"
 )
 
 all_datasets <- c("WEO", "AR(1)", "ARIMA(1,1,0)", "Random Walk", "ARIMA BIC", "OECD")
@@ -108,9 +122,9 @@ df_plot <- eval_df %>%
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels),
+    horizon = recode(horizon, !!!horizon_labels_q),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order)
+    horizon = factor(horizon, levels = horizon_order_q)
   )
 
 
@@ -137,9 +151,9 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
 #average mWIS over all datasets for each horizon
 
 selected_methods <- c(
-  "empirical_quantiles_prediction",
   "linear_quantile_regression",
-  "gauss_quantiles_prediction"
+  "EasyUQ_idr",
+  "empirical_quantiles_prediction"
 )
 
 baseline <- "Empirical"
@@ -150,9 +164,12 @@ baseline <- "Empirical"
 df_plot <- eval_df %>% 
   filter(
     frequency == "annually", 
-    dataset %in% "AR(1)",
+    dataset %in% c("ARIMA BIC","WEO"),
     target %in% "gdp",
     method %in% selected_methods,
+    !(method == "linear_quantile_regression" & dataset == "ARIMA BIC"),
+    !(method == "empirical_quantiles_prediction" & dataset == "ARIMA BIC"),
+    !(method == "EasyUQ_idr" & dataset == "WEO"),
     tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
@@ -209,7 +226,7 @@ ggplot(df_rel , aes(y = fct_rev(method), x = rel_perf, color = method, shape = m
   labs(
     title = paste0("Relative mWIS (Baseline: ", baseline, ")"),
     subtitle = paste(
-      "All Point Forecast Sources (average):",
+      "EasyUQ (ARIMA BIC), Empirical (WEO), Linear QR (WEO) ",
       "| Target:", unique(df_plot$target)
     ),
     y = NULL,
@@ -254,7 +271,7 @@ ggplot(df_rel, aes(y = fct_rev(method), x = rel_perf, color = method, shape = me
   labs(
     title = paste0("Relative mWIS (Baseline: ", baseline, ")"),
     subtitle = paste(
-      "Point Forecast Source: AR(1)",
+      "Point Forecast Source: ARIMA BIC",
       "| Target:", unique(df_plot$target)
     ),
     y = NULL,
@@ -607,15 +624,17 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, fill = dataset)) +
 selected_horizon <- c(0.0, 0.5, 1.0, 1.5)
 
 selected_methods <- c(
-  "gauss_quantiles_prediction",
+  "linear_quantile_regression",
+  "bayesian_quantile_regression",
+  "EasyUQ_idr",
   "empirical_quantiles_prediction"
-  
 )
+
 #data frame for calibration plot
 df_plot_3 <- eval_df %>% 
   filter(
-    frequency == "annually", 
-    dataset %in% c("WEO"),
+    frequency == "quarterly", 
+    dataset %in% "ARIMA BIC",
     target == "cpi",
     method %in% selected_methods,
     variation %in% all_variations,
@@ -625,9 +644,9 @@ df_plot_3 <- eval_df %>%
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels),
+    horizon = recode(horizon, !!!horizon_labels_q),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order)
+    horizon = factor(horizon, levels = horizon_order_q)
   ) %>%
   group_by(method, target, tau, horizon, dataset) %>%
   summarise(
@@ -649,8 +668,10 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   
   labs(
-    title = "Calibration",
-    subtitle = paste("Average across Horizons:", "| Target: ", df_plot_3$target),  
+    title = "Calibration Forecast-Error-based Methods",
+    subtitle = paste("Average across Horizons ", 
+                     "| Point Forecast Source: ", df_plot_3$dataset, 
+                     "| Target: ", df_plot_3$target),  
     x = expression(tau),
     y = "Empirical Coverage",
     color = "Method",
@@ -709,12 +730,12 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
   facet_wrap(~ horizon, ncol = 2) +   # <-- 2x2 layout
   
   scale_color_brewer(palette = "Set2") +
-  scale_shape_manual(values = c(16, 17, 15, 18)) +
+  scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   
   labs(
-    title = "Calibration Empirical vs. Normal",
-    subtitle = paste0("Point Forecast Source: WEO| ",
-                      "Target: ",df_plot_3$target),
+    title = "Calibration of Regression-based vs. Forecast-Error-based Methods",
+    subtitle = paste0("Point Forecast Source: ", df_plot_3$dataset,
+                      "| Target: ",df_plot_3$target),
     x = expression(tau),
     y = "Empirical Coverage",
     color = "Method",
@@ -731,22 +752,27 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
 #mWIS average of specs across horizons for tables
 eval_df %>% 
   filter(
-    frequency == "annually", 
-    dataset %in% all_datasets,
-    target %in% c("cpi"),
-    method %in% selected_methods,
+    frequency == "quarterly", 
+    dataset %in% c("OECD", "WEO"),
+    target %in% c("cpi","gdp"),
+    method %in% c("unconditional_quantiles",
+                  "QAR"),
     tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels),
+    horizon = recode(horizon, !!!horizon_labels_q),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order)
+    horizon = factor(horizon, levels = horizon_order_q)
   ) %>%
-  group_by(method, target, horizon) %>%
-  summarise(WIS_all = mean(WIS_all, na.rm = TRUE), .groups = "drop")
+  group_by(method, target, dataset, horizon) %>%
+  summarise(
+    WIS_all = mean(WIS_all, na.rm = TRUE),
+    mean_coverage = mean(coverage, na.rm = TRUE),
+    .groups = "drop"
+    ) %>% print(n = 100)
 
 #================================================
 #coverage average of specs across horizons for tables
@@ -777,9 +803,10 @@ eval_df %>%
 #===============================================
 
 selected_methods <- c(
-  "empirical_quantiles_prediction",
   "linear_quantile_regression",
-  "EasyUQ_idr"
+  "bayesian_quantile_regression",
+  "EasyUQ_idr",
+  "empirical_quantiles_prediction"
 )
 
 df_plot <- eval_df %>% 

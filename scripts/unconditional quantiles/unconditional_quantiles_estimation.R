@@ -9,13 +9,13 @@ library(purrr)
 
 #source utility functions
 source("scripts/utilities/utility_functions.R")
-source("scripts/unconditional_quantiles/unconditional_quantiles_functions.R")
+source("scripts/unconditional quantiles/unconditional_quantiles_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #===========================================================================
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
 #Random Walk prediction dataframe used for convenience (contains truth values)
-df_oecd_q <- load_and_prepare_RW_data() 
+df_oecd_q <- load_and_prepare_oecd_data()
 #annual
 df_oecd <- df_oecd_q %>% aggregate_to_annual_input()
 
@@ -87,22 +87,21 @@ write.csv(pred_oecd_eval, paste0(
 grid_oecd_q <- crossing(
   country = unique(df_oecd_q$country),
   tau = seq(0.1, 0.9, 0.1),
-  target = c("gdp", "cpi"),
-  horizon = 1.0
+  target = c("gdp", "cpi")
 )
 
 #predict intervals for all combinations 
-pred_oecd_q <- grid_oecd %>% 
+pred_oecd_q <- grid_oecd_q %>% 
   mutate(
     results = pmap(
-      list(country, tau, target, horizon),
-      ~ pred_unc_quantiles(df_oecd_q, ..1, ..2, ..3, ..4)
+      list(country, tau, target),
+      ~ pred_unc_quantiles_q(df_oecd_q, ..1, ..2, ..3)
     )
   ) %>%
   pull(results) %>%
   bind_rows()
 
-
+pred_oecd_q <- pava_correct_df(pred_oecd_q)
 #truth value within predicted interval?
 pred_oecd_q <- is_covered(pred_oecd_q)
 
