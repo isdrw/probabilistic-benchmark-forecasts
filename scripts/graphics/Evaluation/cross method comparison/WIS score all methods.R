@@ -16,7 +16,8 @@ library(tidytext)
 #==========================================================
 
 #data from Eval CSV
-eval_df <- read.csv("data/Evaluation results/evaluation_table5000.CSV", sep = ";")
+eval_df <- read.csv("data/Evaluation results/evaluation_table5000 02_04.CSV", sep = ";")
+eval_df <- eval_df %>% filter(horizon %in% c(0.0, 0.5, 1.0, 1.5))
 
 #==========================================================
 #Renaming for labels
@@ -151,9 +152,11 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
 #average mWIS over all datasets for each horizon
 
 selected_methods <- c(
-  "linear_quantile_regression",
-  "EasyUQ_idr",
-  "empirical_quantiles_prediction"
+  "empirical_quantiles_prediction",
+  "gauss_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction",
+  "ald_quantiles_prediction"
 )
 
 baseline <- "Empirical"
@@ -164,12 +167,9 @@ baseline <- "Empirical"
 df_plot <- eval_df %>% 
   filter(
     frequency == "annually", 
-    dataset %in% c("ARIMA BIC","WEO"),
-    target %in% "gdp",
+    dataset %in% c("WEO"),
+    target %in% "cpi",
     method %in% selected_methods,
-    !(method == "linear_quantile_regression" & dataset == "ARIMA BIC"),
-    !(method == "empirical_quantiles_prediction" & dataset == "ARIMA BIC"),
-    !(method == "EasyUQ_idr" & dataset == "WEO"),
     tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
@@ -225,9 +225,9 @@ ggplot(df_rel , aes(y = fct_rev(method), x = rel_perf, color = method, shape = m
   
   labs(
     title = paste0("Relative mWIS (Baseline: ", baseline, ")"),
-    subtitle = paste(
-      "EasyUQ (ARIMA BIC), Empirical (WEO), Linear QR (WEO) ",
-      "| Target:", unique(df_plot$target)
+    subtitle = paste0(
+      "Point Forecast Source: ", df_plot$dataset,
+      " | Target:", unique(df_plot$target)
     ),
     y = NULL,
     x = "Relative mWIS",
@@ -419,19 +419,21 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = variation)) +
 #Coverage over all datasets for each horizon
 
 selected_methods <- c(
-  "bayesian_quantile_regression",
   "empirical_quantiles_prediction",
-  "linear_quantile_regression",
-  "EasyUQ_idr"
+  "gauss_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction",
+  "ald_quantiles_prediction"
 )
+
 
 
 #filter eval dataset 
 df_plot_2 <- eval_df %>% 
   filter(
     frequency == "annually", 
-    dataset %in% "AR(1)",
-    target == "gdp",
+    dataset %in% "WEO",
+    target %in% c("cpi","gdp"),
     method %in% selected_methods,
     tau == 0.8,
     variation %in% selected_variation
@@ -443,7 +445,7 @@ df_plot_2 <- eval_df %>%
     target = recode(target, !!!target_labels),
     horizon = factor(horizon, levels = horizon_order)
   ) %>%
-  group_by(horizon, method, target) %>%
+  group_by(horizon, method, target, dataset) %>%
   summarise(coverage = mean(coverage, na.rm = TRUE), .groups = "drop")
   
 
@@ -460,19 +462,20 @@ ggplot(df_plot_2, aes(
   scale_color_brewer(palette = "Set2") +
   geom_hline(yintercept = selected_tau, 
              linetype = "solid", 
-             size = 0.8,
+             linewidth = 0.8,
              color = "black") +
   labs(
     title = "Empirical Coverage over Horizons",
-    subtitle = paste("All Point Forecast Sources (average)| Target:", df_plot_2$target),
+    subtitle = paste("Point Forecast Source:", df_plot_2$dataset),
     x = "Forecast Origin",
     y = "Coverage",
-    color = "Specification",
-    shape = "Specification"
+    color = "Method",
+    shape = "Method"
   ) +
+  facet_wrap(~ target, nrow = 1) +
   theme_minimal(base_size = 15) +
   theme(
-    legend.position = "right",
+    legend.position = "bottom",
     plot.title = element_text(face = "bold")
   )
 
@@ -624,18 +627,17 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, fill = dataset)) +
 selected_horizon <- c(0.0, 0.5, 1.0, 1.5)
 
 selected_methods <- c(
-  "linear_quantile_regression",
-  "bayesian_quantile_regression",
-  "EasyUQ_idr",
-  "empirical_quantiles_prediction"
+  "empirical_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction"
 )
 
 #data frame for calibration plot
 df_plot_3 <- eval_df %>% 
   filter(
-    frequency == "quarterly", 
-    dataset %in% "ARIMA BIC",
-    target == "cpi",
+    frequency == "annually", 
+    dataset %in% "WEO",
+    target == "gdp",
     method %in% selected_methods,
     variation %in% all_variations,
     horizon %in% selected_horizon
@@ -733,7 +735,7 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   
   labs(
-    title = "Calibration of Regression-based vs. Forecast-Error-based Methods",
+    title = "Calibration of Empirical vs. Student-t and Skewed-t",
     subtitle = paste0("Point Forecast Source: ", df_plot_3$dataset,
                       "| Target: ",df_plot_3$target),
     x = expression(tau),
@@ -752,20 +754,23 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
 #mWIS average of specs across horizons for tables
 eval_df %>% 
   filter(
-    frequency == "quarterly", 
-    dataset %in% c("OECD", "WEO"),
+    frequency == "annually", 
+    dataset %in% c("WEO"),
     target %in% c("cpi","gdp"),
-    method %in% c("unconditional_quantiles",
-                  "QAR"),
+    method %in% c("t_quantiles_prediction",
+                  "skewed_t_quantiles_prediction",
+                  "gauss_quantiles_prediction",
+                  "ald_quantiles_prediction",
+                  "empirical_quantiles_prediction"),
     tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels_q),
+    horizon = recode(horizon, !!!horizon_labels),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order_q)
+    horizon = factor(horizon, levels = horizon_order)
   ) %>%
   group_by(method, target, dataset, horizon) %>%
   summarise(
@@ -803,10 +808,11 @@ eval_df %>%
 #===============================================
 
 selected_methods <- c(
-  "linear_quantile_regression",
-  "bayesian_quantile_regression",
-  "EasyUQ_idr",
-  "empirical_quantiles_prediction"
+  "empirical_quantiles_prediction",
+  "gauss_quantiles_prediction",
+  "t_quantiles_prediction",
+  "skewed_t_quantiles_prediction",
+  "ald_quantiles_prediction"
 )
 
 df_plot <- eval_df %>% 

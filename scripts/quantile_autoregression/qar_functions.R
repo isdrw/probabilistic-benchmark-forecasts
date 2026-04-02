@@ -12,70 +12,80 @@
 #'@param nlag numeric value for nlag=p of QAR(p) model; default p=1 
 #'
 #' 
-fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag=1) {
+fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10],
+                    nlag = 1, n_ahead = 1) {
   
-  #check for sufficient length of obs
+  # check for sufficient length
   if (length(obs) < nlag + 2) {
-    warning("QAR(",nlag,") Model needs at least ", nlag+2, " observations to fit model")
+    warning("QAR(", nlag, ") Model needs at least ", nlag + 2, " observations")
     return(NULL)
   }
   
-  #substitute NAs with median
-  obs[is.na(obs)] <- median(obs,na.rm=TRUE)
-  
-  #lag data
+  # lagged data
   data_lagged <- lapply(1:nlag, function(L) dplyr::lag(obs, n = L))
-  names(data_lagged) <- paste0("lag_",1:nlag)
+  names(data_lagged) <- paste0("lag_", 1:nlag)
   
-  #dataframe for regression
   data_reg <- data.frame(
-    y = obs, 
+    y = obs,
     do.call(cbind, data_lagged)
   )
   
-  #remove NAs
   data_reg <- stats::na.omit(data_reg)
   
-  #sort tau 
   tau <- sort(unique(tau))
   
-  #check for non empty dataframe
   if (nrow(data_reg) == 0) {
     warning("No valid rows after lagging & removing NA.")
     return(NULL)
   }
   
+  # fit QAR
   fit <- tryCatch({
     quantreg::rq(formula = y ~ ., tau = tau, data = data_reg)
-  },error=function(e){
+  }, error = function(e) {
     message("QAR fit failed ", e$message)
     NULL
   })
   
-  #==================================================
-  #prediction
+  if (is.null(fit)) return(NULL)
   
-  # convert to numeric lag vector
+  #========================================
+  # MULTI-STEP PREDICTION
+  
   last_obs <- as.numeric(last_obs)
   
   if (length(last_obs) != nlag) {
-    stop("last_obs must have length equal to nlag used in model fitting.")
+    stop("last_obs must have length equal to nlag.")
   }
   
-  #prediction vector
-  pred_quantiles <- numeric(length(tau))
+  # rows = horizon, cols = quantiles
+  pred_matrix <- matrix(NA, nrow = n_ahead, ncol = length(tau))
+  colnames(pred_matrix) <- paste0("tau_", tau)
   
-  # current lag state
   lag_vec <- last_obs
-  new_data <- as.data.frame(t(lag_vec))
-  names(new_data) <- paste0("lag_", 1:nlag)
   
-  pred_quantiles <- as.numeric(predict(fit, newdata = new_data))
+  for (h in 1:n_ahead) {
+    
+    new_data <- as.data.frame(t(lag_vec))
+    names(new_data) <- paste0("lag_", 1:nlag)
+    
+    preds <- as.numeric(predict(fit, newdata = new_data))
+    
+    # enforce monotonicity
+    preds <- sort(preds)
+    
+    pred_matrix[h, ] <- preds
+    
+    # recursive update using median
+    median_idx <- ceiling(length(preds) / 2)
+    next_value <- preds[median_idx]
+    
+    lag_vec <- c(tail(lag_vec, nlag - 1), next_value)
+  }
   
-  #ensure monotonicity by sorting quantiles
-  pred_quantiles <- sort(pred_quantiles)
-  return(pred_quantiles)
+  return(pred_matrix)
 }
+
 
 #'
 #'Function iterates over df using an expanding window and calculates prediction intervals
@@ -88,91 +98,95 @@ fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag=1) {
 #'pred_gdp; pred_cpi; tv_gdp; tv_cpi
 #'@param country String of country name to be filtered 
 #'@param target target variable to be filtered ("gdp", "cpi")
-#'@param h horizon = 1.0
 #'@param tau vector of confidence levels 
 #'@param nlag lagged values to be used (default = 1)
 #'@param n_ahead number of values to be forecast (default = 1) (annual)
 #'
-fit_qar_on_df <- function(df, country, target, h, tau = seq(0.1, 0.9, 0.1), nlag=1, n_ahead=1){
+fit_qar_on_df <- function(df, country, target,
+                          tau = seq(0.1, 0.9, 0.1),
+                          nlag = 1, max_h = 7){
   
-  #prediction dataframe
-  predictions <- init_output_df()
-  
-  #output list 
   out_list <- list()
   index <- 1
   
-  #lower and upper quantile level
+  # necessary quantile levels
   tau <- sort(tau)
   tau_lower <- (1 - tau) / 2
   tau_upper <- (1 + tau) / 2
   tau_all <- sort(unique(c(tau_lower, tau_upper)))
   
-  #group data by country
   data_by_country <- df %>% 
-    filter(country == !!country, horizon == h) %>%
+    filter(country == !!country) %>%
     arrange(forecast_year, forecast_quarter)
   
-  for(i in seq(2,nrow(data_by_country)-1)){
-    data <- data_by_country[1:i,][[paste0("tv_",target)]]
+  for(i in seq(2, nrow(data_by_country) - 1)){
     
-    #start and end date of rolling window 
-    end_year <- as.numeric(data_by_country[i,"forecast_year"])
-    start_year <- as.numeric(data_by_country[1,"forecast_year"])
-    end_quarter <- as.numeric(data_by_country[i,"forecast_quarter"])
-    start_quarter <- as.numeric(data_by_country[1,"forecast_quarter"])
+    data <- data_by_country[1:i, ][[paste0("tv_", target)]]
     
-    #skip if only NAs
+    end_year <- as.numeric(data_by_country[i, "forecast_year"])
+    end_quarter <- as.numeric(data_by_country[i, "forecast_quarter"])
+    
     if(all(is.na(data)) || is.null(data)){
-      message("no valid data for ", country, " between ", start_year, " and ", end_year)
       next
     }
     
-    #lagged values of i+1
     last_lags <- tail(data, nlag)
     
-    #fit QAR model
+    # multi-step prediction
     fits <- tryCatch({
-      fit_qar(obs = data, last_obs = last_lags, tau = tau_all, nlag = nlag)
-    },error=function(e){
-      message("fit failed ", e$message)
-      NULL
-    })
+      fit_qar(
+        obs = data,
+        last_obs = last_lags,
+        tau = tau_all,
+        nlag = nlag,
+        n_ahead = max_h
+      )
+    }, error = function(e) NULL)
     
-    #null check fits
     if(is.null(fits)){
       next
     }
     
-    for(j in seq_along(tau)){
-      #extract quantiles to get lower and upper bounds 
-      #(fit_qar returns vector of quantiles in order of confidence levels)
-      lower_bound <- fits[length(tau_all) / 2 - j + 1]
-      upper_bound <- fits[length(tau_all) / 2 + j]
+    # loop over horizons
+    for(h_step in 1:max_h){
       
-      # truth values
-      truth_value <- data_by_country[i+1,][[paste0("tv_",target)]]
-      forecast_year_1 <- as.numeric(data_by_country[i+1,"forecast_year"])
-      forecast_quarter_1 <- as.numeric(data_by_country[i+1,"forecast_quarter"])
+      if(i + h_step > nrow(data_by_country)){
+        break
+      }
       
-      # build all rows at once
-      out_list[[index]] <- new_pred_row(
-        country = country,
-        forecast_year = forecast_year_1,
-        forecast_quarter = forecast_quarter_1,
-        target_year = NA,
-        horizon = h,
-        target = target,
-        tau = tau[j],
-        lower_bound = lower_bound,
-        upper_bound = upper_bound,
-        truth_value = truth_value,
-      )
+      # time mapping
+      target_quarter <- (end_quarter + h_step - 1) %% 4 + 1
+      target_year <- end_year + ((end_quarter + h_step - 1) %/% 4)
       
-      index <- index + 1
+      truth_value <- data_by_country[[paste0("tv_", target)]][i + h_step]
+      
+      # loop over tau levels
+      for(j in seq_along(tau)){
+        
+        lower_bound <- fits[h_step, length(tau_all)/2 - j + 1]
+        upper_bound <- fits[h_step, length(tau_all)/2 + j]
+        
+        horizon_val <- (h_step - 1) * 0.25
+        
+        out_list[[index]] <- new_pred_row(
+          country = country,
+          forecast_year = end_year,
+          forecast_quarter = end_quarter,
+          target_year = target_year,
+          target_quarter = target_quarter,
+          horizon = horizon_val,
+          target = target,
+          tau = tau[j],
+          lower_bound = lower_bound,
+          upper_bound = upper_bound,
+          truth_value = truth_value
+        )
+        
+        index <- index + 1
+      }
     }
-    
   }
+  
   predictions <- bind_rows(out_list)
   return(predictions)
 }

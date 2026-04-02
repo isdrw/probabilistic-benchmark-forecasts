@@ -16,7 +16,7 @@ source("scripts/quantile_autoregression/qar_functions.R")
 source("scripts/utilities/data_transformation_functions.R")
 
 #load and prepare data from file "data/raw/IMF WEO\oecd_quarterly_data.csv"
-df_oecd_q <- load_and_prepare_RW_data() 
+df_oecd_q <- load_and_prepare_oecd_data()
 
 #annual
 df_oecd <-df_oecd_q %>% aggregate_to_annual_input() 
@@ -70,16 +70,15 @@ pred_oecd <- grid_oecd %>%
 #create grid 
 grid_oecd_q <- crossing(
   country = unique(df_oecd_q$country),
-  target = c("gdp", "cpi"),
-  horizon = 1.0
+  target = c("gdp", "cpi")
 )
 
 #predict intervals for all combinations 
 pred_oecd_q <- grid_oecd_q %>% 
   mutate(
     results = pmap(
-      list(country, target, horizon),
-      ~ fit_qar_on_df(df_oecd_q, ..1, ..2, ..3)
+      list(country, target),
+      ~ fit_qar_on_df(df_oecd_q, ..1, ..2)
     )
   ) %>%
   pull(results) %>%
@@ -157,6 +156,9 @@ write.csv(pred_oecd_eval, paste0(
 
 
 #=======================================================================
+
+pred_oecd_q <- pava_correct_df(pred_oecd_q)
+
 #truth value within predicted interval?
 pred_oecd_q <- is_covered(pred_oecd_q)
 
