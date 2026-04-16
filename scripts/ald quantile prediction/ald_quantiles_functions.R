@@ -17,7 +17,7 @@ fit_ald_distribution <- function(x){
   }
   
   fit <- tryCatch(
-    ald::mleALD(x_clean),
+      ald::mleALD(x_clean),
     error = function(e){
       warning("fitdist failed to fit ALD: ", conditionMessage(e))
       NULL

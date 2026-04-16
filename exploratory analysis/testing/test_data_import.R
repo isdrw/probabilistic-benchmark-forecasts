@@ -144,3 +144,13 @@ bench <- microbenchmark(
 )
 
 print(bench)
+
+
+df_rw <- load_and_prepare_RW_data() 
+first_diff <- df_rw %>% 
+  filter(country == "CAN", horizon == 0.0) %>%
+  mutate(first_diff = tv_cpi - pred_cpi) %>% pull(first_diff)
+hist(first_diff, breaks = 30)
+ad.test(first_diff)
+
+

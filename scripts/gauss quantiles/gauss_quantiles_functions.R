@@ -64,7 +64,7 @@ fit_gauss <- function(df, country, tau, target, h, R=11, fit_mean=FALSE, unbiase
     #set of abs prediction errors 
     err_set <- data_by_country[(i-R+1):i,][[paste0(target, "_err")]]
     
-    #replacement of NA with median (only relevant for years 2025)
+    #replacement of NA with median (only relevant for year 2025)
     err_set[is.na(err_set)] <-  median(err_set)
     
     #forecast_year of i+1

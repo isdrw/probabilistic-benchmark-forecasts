@@ -413,7 +413,11 @@ check_loss <- function(u, tau){
 #'7  quarters with weights 0.25, 0.5, 0.75, 1.0, 0.75, 0.5, 0.25 (sum = 4) 
 #'are summed to annual growth rate. The quarterly values must be quarter on quarter growth
 #'rates (in percent). The output is an annual growth rate (in percent)
-#'
+#'@note Dataframe must be produced by function fit_arima in file ts_annual_data.R
+#'to match horizons: for horizon 0.0 only one quarter ahead prediction from 3rd quarter
+#'for horizon 0.5 three quarter ahead predictions from 1st quarter
+#'for horizon 1.0 five quarter ahead predictions from 3rd quarter 
+#'for horizon 1.5 seven quarter ahead predictions from 1st quarter
 #'
 #'@param df input dataframe (from quarterly TS predictions). Must contain columns target_year, target_quarter
 #'forecast_year, forecast_quarter, country, horizon, pred_cpi, pred_gdp, tv_cpi, tv_gdp 
@@ -443,6 +447,7 @@ aggregate_to_annual_input <- function(df){
           #required indexes for truth value
           required_index <- (4 * (t - 1) + 2):(4 * t + 4)
           
+          # required window 
           truth_df <- .x %>%
             filter(tq_index %in% required_index) %>%
             distinct(tq_index, .keep_all = TRUE) %>%
@@ -463,6 +468,8 @@ aggregate_to_annual_input <- function(df){
             ) %>%
             arrange(tq_index)
           
+          # number of predictions needed depending on horizon
+          # for h = 0.0 --> 1, 0.5 --> 3 ... 
           n_pred <- as.integer(h / 0.25 + 1)
           
           if (nrow(pred_df) != n_pred){

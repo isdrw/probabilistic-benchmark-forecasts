@@ -29,14 +29,15 @@ method_labels <- c(
   "bayesian_quantile_regression" = "Bayesian QR",
   "linear_quantile_regression" = "Linear QR",
   "EasyUQ_idr" = "EasyUQ (IDR)",
-  "empirical_quantiles_prediction" = "Empirical"
+  "empirical_quantiles_prediction" = "Empirical",
+  "unconditional_quantiles" = "Unc. Quantiles"
 )
 
 variation_labels <- c(
   "fitted_mean" = "Fitted mean",
-  "fitted_mean & unbiased VAR" = "Fitted mean, unbiased VAR",
+  "fitted_mean & unbiased VAR" = "Fitted mean, unbiased Var",
   "mean0" = "Zero mean",
-  "mean0 & unbiased VAR" = "Zero mean, unbiased VAR"
+  "mean0 & unbiased VAR" = "Zero mean, unbiased Var"
 )
 
 dataset_labels <- c(
@@ -153,12 +154,10 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
 
 selected_methods <- c(
   "empirical_quantiles_prediction",
-  "gauss_quantiles_prediction",
-  "t_quantiles_prediction",
-  "skewed_t_quantiles_prediction",
-  "ald_quantiles_prediction"
+  "linear_quantile_regression",
+  "bayesian_quantile_regression",
+  "EasyUQ_idr"
 )
-
 baseline <- "Empirical"
 
 
@@ -166,9 +165,9 @@ baseline <- "Empirical"
 #absolute performance
 df_plot <- eval_df %>% 
   filter(
-    frequency == "annually", 
-    dataset %in% c("WEO"),
-    target %in% "cpi",
+    frequency == "quarterly", 
+    dataset %in% c("ARIMA BIC"),
+    target %in% c("cpi"),
     method %in% selected_methods,
     tau == 0.8,
     variation %in% all_variations
@@ -176,9 +175,9 @@ df_plot <- eval_df %>%
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels),
+    horizon = recode(horizon, !!!horizon_labels_q),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order)
+    horizon = factor(horizon, levels = horizon_order_q)
   ) %>%
   group_by(horizon, method, target, dataset) %>%
   summarise(WIS_all = mean(WIS_all, na.rm = TRUE), .groups = "drop") 
@@ -187,19 +186,20 @@ df_plot <- eval_df %>%
 df_rel <- df_plot %>%
   left_join(
     df_plot %>%
-      filter(method == baseline) %>%
+      filter(method == !!baseline) %>%
       select(horizon, target, baseline = WIS_all),
     by = c("horizon", "target")  # join by both horizon and target
   ) %>%
   mutate(rel_perf = WIS_all / baseline) %>% 
   group_by(horizon) %>%
   mutate(method_reordered = reorder_within(method, rel_perf, horizon)) %>%
-  ungroup()
+  ungroup() 
 
 max_rel_perf <- min(2,max(abs(df_rel$rel_perf-1)))
 
 # Dumbbell plot (all datasets)
-ggplot(df_rel , aes(y = fct_rev(method), x = rel_perf, color = method, shape = method)) +
+ggplot(df_rel %>% filter(method != !!baseline),
+       aes(y = fct_rev(method), x = rel_perf, color = method, shape = method)) +
   
   # baseline ±5% band
   annotate("rect", xmin = 0.95, xmax = 1.05, ymin = -Inf, ymax = Inf,
@@ -244,7 +244,8 @@ ggplot(df_rel , aes(y = fct_rev(method), x = rel_perf, color = method, shape = m
   )
 
 # Dumbbell plot (one dataset)
-ggplot(df_rel, aes(y = fct_rev(method), x = rel_perf, color = method, shape = method)) +
+ggplot(df_rel %>% filter(method != !!baseline),
+       aes(y = fct_rev(method), x = rel_perf, color = method, shape = method)) +
   
   # baseline ±5% band
   annotate("rect", xmin = 0.95, xmax = 1.05, ymin = -Inf, ymax = Inf,
@@ -419,11 +420,7 @@ ggplot(df_plot_2, aes(x = horizon, y = coverage, color = variation)) +
 #Coverage over all datasets for each horizon
 
 selected_methods <- c(
-  "empirical_quantiles_prediction",
-  "gauss_quantiles_prediction",
-  "t_quantiles_prediction",
-  "skewed_t_quantiles_prediction",
-  "ald_quantiles_prediction"
+  "gauss_quantiles_prediction"
 )
 
 
@@ -432,8 +429,8 @@ selected_methods <- c(
 df_plot_2 <- eval_df %>% 
   filter(
     frequency == "annually", 
-    dataset %in% "WEO",
-    target %in% c("cpi","gdp"),
+    dataset %in% c("AR(1)"),
+    target %in% c("gdp"),
     method %in% selected_methods,
     tau == 0.8,
     variation %in% selected_variation
@@ -445,7 +442,7 @@ df_plot_2 <- eval_df %>%
     target = recode(target, !!!target_labels),
     horizon = factor(horizon, levels = horizon_order)
   ) %>%
-  group_by(horizon, method, target, dataset) %>%
+  group_by(horizon, variation, target, dataset) %>%
   summarise(coverage = mean(coverage, na.rm = TRUE), .groups = "drop")
   
 
@@ -453,9 +450,9 @@ df_plot_2 <- eval_df %>%
 ggplot(df_plot_2, aes(
   x = horizon, 
   y = coverage, 
-  color = method, 
-  group = method, 
-  shape = method)) +
+  color = variation, 
+  group = variation, 
+  shape = variation)) +
   geom_line(linewidth = 1.1, linetype = "dotted") +
   geom_point(size = 4.5) +
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
@@ -466,7 +463,7 @@ ggplot(df_plot_2, aes(
              color = "black") +
   labs(
     title = "Empirical Coverage over Horizons",
-    subtitle = paste("Point Forecast Source:", df_plot_2$dataset),
+    subtitle = paste("All Point Forecast Sources (average)"),
     x = "Forecast Origin",
     y = "Coverage",
     color = "Method",
@@ -483,10 +480,10 @@ ggplot(df_plot_2, aes(
 ggplot(df_plot_2, aes(
   x = horizon, 
   y = coverage, 
-  color = method, 
-  group = method, 
-  shape = method)) +
-  geom_line(size = 1.1, linetype = "dotted") +
+  color = variation, 
+  group = variation, 
+  shape = variation)) +
+  geom_line(linewidth = 1.1, linetype = "dotted") +
   geom_point(size = 4.5) +
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   scale_color_brewer(palette = "Set2") +
@@ -496,13 +493,14 @@ ggplot(df_plot_2, aes(
              color = "black") +
   labs(
     title = "Empirical Coverage over Horizons",
-    subtitle = paste("Point Forecast Source: AR(1)","| Target:", df_plot_2$target),
+    subtitle = paste("Point Forecast Source:", df_plot_2$dataset,"| Target:", df_plot_2$target),
     x = "Forecast Origin",
     y = "Coverage",
     color = "Specification",
     shape = "Specification"
   ) +
   theme_minimal(base_size = 15) +
+  scale_y_continuous(limits = c(0, 1)) +
   theme(
     legend.position = "right",
     plot.title = element_text(face = "bold")
@@ -627,16 +625,15 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, fill = dataset)) +
 selected_horizon <- c(0.0, 0.5, 1.0, 1.5)
 
 selected_methods <- c(
-  "empirical_quantiles_prediction",
-  "t_quantiles_prediction",
-  "skewed_t_quantiles_prediction"
+  "bayesian_quantile_regression",
+  "empirical_quantiles_prediction"
 )
 
 #data frame for calibration plot
 df_plot_3 <- eval_df %>% 
   filter(
     frequency == "annually", 
-    dataset %in% "WEO",
+    dataset %in% c("WEO"),
     target == "gdp",
     method %in% selected_methods,
     variation %in% all_variations,
@@ -646,9 +643,9 @@ df_plot_3 <- eval_df %>%
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels_q),
+    horizon = recode(horizon, !!!horizon_labels),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order_q)
+    horizon = factor(horizon, levels = horizon_order)
   ) %>%
   group_by(method, target, tau, horizon, dataset) %>%
   summarise(
@@ -704,8 +701,8 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   
   labs(
-    title = "Calibration Empirical vs. Normal",
-    subtitle = paste0("All Point Forecast Sources (average) | ","Target: ",df_plot_3$target),
+    title = "Calibration Empirical vs. Bayesian QR",
+    subtitle = paste0("Point Forecast Source: ", df_plot_3$dataset," | Target: ",df_plot_3$target),
     x = expression(tau),
     y = "Empirical Coverage",
     color = "Method",
@@ -735,8 +732,8 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
   scale_shape_manual(values = c(16, 17, 15, 18, 19)) +
   
   labs(
-    title = "Calibration of Empirical vs. Student-t and Skewed-t",
-    subtitle = paste0("Point Forecast Source: ", df_plot_3$dataset,
+    title = "Calibration of Unconditional Quantiles vs. Quantile Autoregression",
+    subtitle = paste0(
                       "| Target: ",df_plot_3$target),
     x = expression(tau),
     y = "Empirical Coverage",
@@ -754,28 +751,30 @@ ggplot(df_plot_3, aes(x = tau, y = coverage,
 #mWIS average of specs across horizons for tables
 eval_df %>% 
   filter(
-    frequency == "annually", 
-    dataset %in% c("WEO"),
+    frequency == "quarterly", 
+    dataset %in% c("AR(1)", "ARIMA BIC"),
     target %in% c("cpi","gdp"),
-    method %in% c("t_quantiles_prediction",
+    !(target == "cpi" & dataset == "AR(1)"),
+    !(target == "gdp" & dataset == "ARIMA BIC"),
+    method %in% c("ald_quantiles_prediction",
+                  "t_quantiles_prediction",
                   "skewed_t_quantiles_prediction",
                   "gauss_quantiles_prediction",
-                  "ald_quantiles_prediction",
                   "empirical_quantiles_prediction"),
-    tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels),
+    horizon = recode(horizon, !!!horizon_labels_q),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order)
+    horizon = factor(horizon, levels = horizon_order_q)
   ) %>%
-  group_by(method, target, dataset, horizon) %>%
+  group_by(method, target, dataset) %>%
   summarise(
     WIS_all = mean(WIS_all, na.rm = TRUE),
     mean_coverage = mean(coverage, na.rm = TRUE),
+    norm_sd_coverage = sd(abs(tau-coverage), na.rm = TRUE)/mean_coverage,
     .groups = "drop"
     ) %>% print(n = 100)
 
@@ -808,12 +807,9 @@ eval_df %>%
 #===============================================
 
 selected_methods <- c(
-  "empirical_quantiles_prediction",
-  "gauss_quantiles_prediction",
-  "t_quantiles_prediction",
-  "skewed_t_quantiles_prediction",
-  "ald_quantiles_prediction"
+  "gauss_quantiles_prediction"
 )
+
 
 df_plot <- eval_df %>% 
   filter(
