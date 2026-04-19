@@ -97,7 +97,7 @@ All outputs are stored in:
     - `unbiased_sd = TRUE / FALSE`
   - Update folder paths and file names according to the selected configuration  
 
-- Output files are automatically saved with timestamps.
+- Output files are generally saved with timestamps.
 
 ---
 
