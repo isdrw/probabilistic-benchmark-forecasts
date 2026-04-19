@@ -1,6 +1,10 @@
 # data_transformation_functions.R
 # Modular utility functions
 
+#'!!! Generative AI usage only for debugging purposes for all functions here, unless
+#'stated otherwise
+#'and dplyr syntax; level = medium 
+
 # ===========================
 ## preparation of "WEOforecasts_prefilter.parquet" data
 # # path "data/raw/IMF WEO/WEOforecasts_prefilter.parquet"
@@ -17,6 +21,7 @@ load_WEO_data <- function(path = r"(data/raw/IMF WEO\WEOforecasts_prefilter.parq
   
   return(df)
 }
+
 
 #'function removes unnecessary columns from data "WEOforecasts_prefilter.parquet"
 #'
@@ -428,6 +433,7 @@ load_and_prepare_ARIMA_auto_data <- function(path = r"(data/processed/point pred
 
 #=======================================================================
 
+#'!!! Generative AI; level = high --> format of latex block created by GenAI
 #'function produces LaTeX Block of given evaluation dataframe
 make_latex_block <- function(df) {
   
@@ -474,6 +480,7 @@ make_latex_block <- function(df) {
     GDP = make_rows("gdp")
   )
 }
+
 
 make_latex_block_string <- function(df){
   cat("CPI\n")

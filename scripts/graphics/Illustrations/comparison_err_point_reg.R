@@ -5,6 +5,8 @@ library(patchwork)
 library(RColorBrewer)
 library(quantreg)
 
+#'!!! Generative AI; level = high --> simulation of AR data based on 
+#'description of desired process
 # -------------------------
 # Simulate  AR(1)
 # -------------------------
@@ -40,6 +42,8 @@ for(i in 3:n){
   fit_y <- arima(y[1:i], order = c(1,0,0))
   x[i] <- as.numeric(predict(fit_y)$pred[1])
 }
+#!!!
+
 
 # add some noise to forecasts to make them "less perfect"
 x <- x + rnorm(n, sd = 0.075)
@@ -68,6 +72,8 @@ df <- data.frame(x = x, err = err)
 # -------------------------
 # Prepare data for plotting
 # -------------------------
+
+#'!!! Generative AI; level = medium --> data preparation suggestion
 set2 <- brewer.pal(8, "Set2")
 
 # sort data for line plotting
@@ -85,6 +91,9 @@ x_pos <- max(df$x)
 y_q01 <- tail(pred_df$q01, 1)
 y_q09 <- tail(pred_df$q09, 1)
 
+
+#'!!! Generative AI; level = high --> code for plots based on 
+#'description of what should be plotted
 # -------------------------
 # Plot
 # -------------------------

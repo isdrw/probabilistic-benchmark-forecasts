@@ -41,7 +41,7 @@ unconditional_quantiles <- function(obs, tau, n_ahead = 4) {
 }
 
 
-#'
+#'!!! Generative AI; level = low --> debugging
 #'Function iterates over df using an expanding window and calculates prediction intervals
 #'for a specified confidence level method = unconditional quantiles
 #'
@@ -115,8 +115,9 @@ pred_unc_quantiles <- function(df, country, tau, target, h = 1.0, nlag=1){
   predictions <- bind_rows(out_list)
   return(predictions)
 }
+#!!!
 
-#'
+#'!!! Generative AI; level = low --> debugging
 #'Function iterates over df using an expanding window and calculates prediction intervals
 #'for a specified confidence level method = unconditional quantiles 
 #'produces seven step ahead prediction intervals
@@ -194,3 +195,4 @@ pred_unc_quantiles_q <- function(df, country, tau, target, max_h = 7, nlag = 1){
   predictions <- bind_rows(out_list)
   return(predictions)
 }
+#!!!

@@ -5,6 +5,9 @@ library(ald)
 library(ggplot2)
 library(RColorBrewer)
 
+#'!!!Generative AI; level = high --> code for data simulation generated based on
+#'description of desired process
+#'code for plot generated based on description
 # Parameters
 alpha <- 0.8
 mu <- 0

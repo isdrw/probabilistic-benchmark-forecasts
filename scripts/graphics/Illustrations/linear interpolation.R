@@ -1,6 +1,10 @@
 library(ggplot2)
 
 set.seed(13)
+
+#'!!! Generative AI; level = high --> code for data simulation generated based 
+#'on desired process
+#'code for plot fully generated based on description of what should be plotted
 #sample size
 n1 <- 15
 n2 <- 60

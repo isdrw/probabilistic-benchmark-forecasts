@@ -1,3 +1,8 @@
+#'!!! Generative AI; level = medium --> debugging + 
+#'function calls future_pmap, progress bar and 
+#'other dplyr syntax suggestions
+
+
 rm(list = ls())
 gc()
 

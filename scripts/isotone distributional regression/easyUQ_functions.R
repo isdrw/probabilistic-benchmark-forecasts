@@ -3,6 +3,8 @@
 #==========================================================
 
 
+#'!!! Generative AI; level = medium --> debugging + function call of 
+#'osqp package 
 #'EasyUQ isotonic distributional regression
 #'
 #'@param x vector of point forecast
@@ -79,6 +81,7 @@ easyUQ_idr <- function(x, y){
   
 }
 
+#'runtime much longer than osqp based function. Not used here.
 #'EasyUQ isotonic distributional regression
 #'(using PAV algorithm)
 #'@param x vector of point forecast
@@ -137,6 +140,7 @@ easyUQ_idr_pav <- function(x, y){
   
 }
 
+#' !!! Generative AI; level = medium --> debuggin + approx function call
 #'function returns estimated cdfs of fitted model given vector x_new of new
 #'values via linear interpolation
 #'@param model fitted EasyUQ model from easyUQ_idr function
@@ -232,7 +236,7 @@ fit_easyUQ <- function(x, y, tau, x_new){
 # Loop function
 #=================================================================
 
-#'
+#'!!! Generative AI; level = low --> debugging
 #'Function iterates over df using an expanding window and calculates prediction intervals
 #'for a specified confidence level method = EasyUQ
 #'

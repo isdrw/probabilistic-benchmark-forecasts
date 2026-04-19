@@ -1,6 +1,11 @@
 library(ggplot2)
 library(tibble)
 
+
+#'!!! Generative AI; level = high --> code for data simulation generated based 
+#'on description of desired process
+#'code for plots fully generated based on description of what should
+#'be plotted
 set.seed(12)
 T <- 30
 R <- 5

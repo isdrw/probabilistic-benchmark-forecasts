@@ -1,3 +1,7 @@
+#'!!! Generative AI; level = medium --> debugging + function calls pmap and 
+#'other dplyr syntax suggestions
+
+
 rm(list = ls(all=TRUE))
 gc()
 
@@ -16,7 +20,7 @@ source("scripts/utilities/data_transformation_functions.R")
 #load and prepare OECD quarterly data from oecd_quarterly_data.csv in folder: "data/raw"
 df_oecd <- load_and_prepare_oecd_data()
 
-
+#'!!! Generative AI; level = medium --> debugging + dplyr syntax suggestions 
 #Function to fit ARIMA model either with given order or with automatic
 #fitting of best order according to BIC
 fit_arima <- function(df, country, target,
@@ -132,6 +136,7 @@ fit_arima <- function(df, country, target,
   
   bind_rows(out_list)
 }
+#!!!
 
 
 

@@ -1,3 +1,6 @@
+#'!!! Generative AI; level = medium --> debugging + function calls pmap and 
+#'other dplyr syntax suggestions
+
 rm(list = ls(all=TRUE))
 gc()
 
@@ -17,8 +20,9 @@ source("scripts/utilities/data_transformation_functions.R")
 df_oecd <- load_and_prepare_oecd_data()
 
 
-fit_arima <- function(df, country, target, R = 44,
-                      order = c(1,0,0), auto = FALSE){
+#'!!! Generative AI; level = medium --> debugging + dplyr syntax suggestions
+#function creates quarterly time-series forecasts with up to 7 quarter ahead predictions
+fit_arima <- function(df, country, target, R = 44, order = c(1,0,0), auto = FALSE){
   
   out_list <- list()
   index <- 1
@@ -28,10 +32,11 @@ fit_arima <- function(df, country, target, R = 44,
     arrange(forecast_year, forecast_quarter)
   
   for(i in seq(1 + order[1], nrow(data_by_country))){
-    
+    #end of expanding window
     end_year    <- data_by_country[i, "forecast_year"]
     end_quarter <- data_by_country[i, "forecast_quarter"]
     
+    #time series data
     data <- data_by_country[1:i, ][[target]]
     if (all(is.na(data)) || is.null(data)){
       next

@@ -4,6 +4,9 @@ library(tidyr)
 
 set.seed(66)
 
+#'!!! Generative AI; level = high --> code for data simulation generated based
+#'on prompted process
+#'code for plots generated based on description of plot
 #DGP 
 n <- 5000
 x <- runif(n, -2, 2)

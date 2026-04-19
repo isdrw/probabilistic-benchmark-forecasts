@@ -5,6 +5,7 @@
 ## Scoring functions
 # ===========================
 
+#'!!! Generative AI; level = low --> debugging
 #'calculate Interval Score
 #'@description
 #'Function calculates Interval Score based on given truth values lower
@@ -53,8 +54,10 @@ interval_score <- function(truth_value, lower_bound, upper_bound, tau){
   
   return(IS)
 }
+#!!!
 
 
+#'!!! Generative AI; level = low --> debugging
 #'functions calculates interval scores of given prediction dataframe
 #'@description The function takes in a prediction dataframe with columns 
 #'truth_value, lower_bound, upper_bound and tau (long format) and adds a column IS 
@@ -85,7 +88,9 @@ summarise_IS_of_df <- function(df){
       .groups = "drop"
     )
 }
+#!!!
 
+#'!!! Generative AI; level = low --> debugging
 #'calculate Weighted Interval Score
 #'@description
 #'Function calculates weighted Interval Score based on given truth values lower
@@ -145,7 +150,9 @@ weighted_interval_score <- function(truth_value, lower_bound, upper_bound, tau_s
   
   return(WIS)
 }
+#!!!
 
+#'!!! Generative AI; level = low --> debugging
 #'function creates matrix for given set of taus and column name
 #'@description The function creates a matrix with dimensions length(column) X length(taus)
 #'where each column is a vector of the specified column name from the dataframe df 
@@ -179,9 +186,9 @@ make_tau_matrix <- function(df, column, taus) {
   
   do.call(cbind, mats)
 }
+#!!!
 
-
-
+#'!!! Generative AI; level = low --> debugging
 calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
   #lower_bound matrix
   lower_bound_mat <- make_tau_matrix(df = df, "lower_bound", taus = taus)
@@ -207,8 +214,9 @@ calc_WIS_of_df <- function(df, taus = c(0.5, 0.8)){
   
   return(WIS)
 }
+#!!!
 
-
+#'!!! Generative AI; level = low --> debugging
 summarise_WIS_of_df <- function(df){
   #WIS for 50% and 80% intervals per target
   WIS_58 <- df %>%
@@ -231,6 +239,7 @@ summarise_WIS_of_df <- function(df){
   
   return(result)
 }
+#!!!
 
 
 is_covered <- function(df){
@@ -250,7 +259,7 @@ summarise_coverage_of_df <- function(df){
     )
 }
 
-
+#'!!! Generative AI; level = medium --> debugging + dpylr function syntax
 summarise_eval <- function(df){
   #coverage
   coverage_df <- df %>% 
@@ -271,6 +280,7 @@ summarise_eval <- function(df){
   
   return(summary_df)
 }
+#!!!
 
 # ===========================
 ## prediction output functions
@@ -361,7 +371,7 @@ new_pred_row <- function(country, forecast_year, target_year, target, target_qua
 ## data transformation/ correction
 # ---------------------------
 
-
+#'!!! Generative AI; level = medium --> debugging + dplyr syntax
 #'function applies Pool Adjacent Violators Algorithm (PAVA) on intervals from each horizon
 #' and ensures isotonicity over all horizons
 #'
@@ -377,7 +387,7 @@ pava_correct_df <- function(df){
       W = upper_bound - lower_bound,
       M = (upper_bound + lower_bound) / 2
     ) %>%
-    dplyr::group_by(country, target, tau, target_year, target_quarter) %>%
+      dplyr::group_by(country, target, tau, target_year, target_quarter) %>%
     dplyr::arrange(suppressWarnings(as.numeric(horizon)), .by_group = TRUE) %>%
     dplyr::group_modify(~{
       
@@ -407,6 +417,7 @@ check_loss <- function(u, tau){
 }
 
 
+#'!!! Generative AI, level = medium --> debugging and dplyr syntax 
 #'function aggregates quarterly input dataframe to annual values
 #'
 #'@description
@@ -523,4 +534,5 @@ aggregate_to_annual_input <- function(df){
   
   out
 }
+#'!!!
 

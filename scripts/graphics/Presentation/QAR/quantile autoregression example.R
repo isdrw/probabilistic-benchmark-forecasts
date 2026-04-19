@@ -4,6 +4,10 @@ library(RColorBrewer)
 
 set.seed(11)
 
+#'!!! Generative AI; level = high --> code for data simulation 
+#'generated (only minor changes)
+#'code for plot fully generated based on description of what should be plotted
+#'
 # -------------------------
 # 1. Simulate heteroskedastic AR(1)
 # -------------------------

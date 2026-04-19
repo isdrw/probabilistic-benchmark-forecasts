@@ -2,7 +2,7 @@
 #Functions for Bayesian Quantile Regression
 #==========================================================
 
-#'
+#'!!! Generative AI; level = medium --> debugging + bayesQR function call
 #'Function iterates over df using an expanding window and calculates prediction intervals
 #'for a specified confidence level method = Bayesian Quantile Regression (expanding window)
 #'
@@ -192,6 +192,7 @@ rinvgauss <- function(n, mu, lambda){
 }
 
 
+#'!Function not used in prediction
 #'function estimates quantiles through a bayesian quantile regression model
 #'
 #'@description The BQR Model uses a normal-inverse-Gaussian representation of the

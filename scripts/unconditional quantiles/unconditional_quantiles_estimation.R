@@ -1,3 +1,6 @@
+#'!!! Generative AI; level = medium --> debugging + functions calls of pmap 
+#'and other dplyr syntax suggested
+
 rm(list = ls())
 gc()
 

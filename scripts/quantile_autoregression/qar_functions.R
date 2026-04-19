@@ -2,18 +2,19 @@
 #Functions for QAR
 #==========================================================
 
-
+#'!!! Generative AI; level = medium --> debugging + dplyr syntax 
 #'fit quantile autoregressive model QAR(p) and return fit (observation based)
 #'
-#'@note 
+#'#'@note Filter for horizon required to fit dataframe structure
+#'(observation-based method --> only one step ahead) 
+#'
 #'@param obs numeric vector of observations
 #'@param last_obs numeric value of last observed value 
 #'@param tau numeric vector of quantile levels
 #'@param nlag numeric value for nlag=p of QAR(p) model; default p=1 
 #'
 #' 
-fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10],
-                    nlag = 1, n_ahead = 1) {
+fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10], nlag = 1, n_ahead = 1) {
   
   # check for sufficient length
   if (length(obs) < nlag + 2) {
@@ -87,12 +88,12 @@ fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10],
 }
 
 
-#'
+#'!!! Generative AI; level = low --> debugging 
 #'Function iterates over df using an expanding window and calculates prediction intervals
 #'for a specified confidence level method = unconditional quantiles
 #'
-#'@note Filter for horizon required to fit dataframe structure
-#'(observation-based method --> only one step ahead) 
+#'@note up to 7 step ahead forecasts (quarterly). Median prediction used as next 
+#'lagged value for prediction of next step
 #'
 #'@param df dataframe with columns: country; target_year; horizon; forecast_year; 
 #'pred_gdp; pred_cpi; tv_gdp; tv_cpi
@@ -100,11 +101,8 @@ fit_qar <- function(obs, last_obs, tau = seq(0.05, 0.95, 0.05)[-10],
 #'@param target target variable to be filtered ("gdp", "cpi")
 #'@param tau vector of confidence levels 
 #'@param nlag lagged values to be used (default = 1)
-#'@param n_ahead number of values to be forecast (default = 1) (annual)
 #'
-fit_qar_on_df <- function(df, country, target,
-                          tau = seq(0.1, 0.9, 0.1),
-                          nlag = 1, max_h = 7){
+fit_qar_on_df <- function(df, country, target, tau = seq(0.1, 0.9, 0.1), nlag = 1, max_h = 7){
   
   out_list <- list()
   index <- 1
