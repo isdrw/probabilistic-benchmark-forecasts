@@ -109,7 +109,7 @@ All outputs are stored in:
   - Available system memory  
 
 - Some methods (especially **Bayesian Quantile Regression**) have high memory requirements.  
-- Running all scripts simultaneously may lead to crashes or interruptions.  
+- Running all function calls simultaneously may lead to crashes or interruptions.  
 
 **Recommendation:**
 - Execute only a few function calls at a time  
