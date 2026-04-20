@@ -160,7 +160,6 @@ ggplot(df_plot, aes(x = horizon, y = WIS_all, color = method, group = method)) +
 selected_methods <- c(
   "empirical_quantiles_prediction",
   "linear_quantile_regression",
-  "bayesian_quantile_regression",
   "EasyUQ_idr"
 )
 baseline <- "Empirical"
@@ -170,19 +169,22 @@ baseline <- "Empirical"
 #absolute performance
 df_plot <- eval_df %>% 
   filter(
-    frequency == "quarterly", 
-    dataset %in% c("ARIMA BIC"),
-    target %in% c("cpi"),
+    frequency == "annually", 
+    dataset %in% c("ARIMA BIC", "WEO"),
+    target %in% c("gdp"),
     method %in% selected_methods,
+    !(method == "EasyUQ_idr" & dataset == "WEO"),
+    !(method == "linear_quantile_regression" & dataset == "ARIMA BIC"),
+    !(method == "empirical_quantiles_prediction" & dataset == "ARIMA BIC"),
     tau == 0.8,
     variation %in% all_variations
   ) %>% mutate(
     method = recode(method, !!!method_labels),
     variation = recode(variation, !!!variation_labels),
     dataset = recode(dataset, !!!dataset_labels),
-    horizon = recode(horizon, !!!horizon_labels_q),
+    horizon = recode(horizon, !!!horizon_labels),
     target = recode(target, !!!target_labels),
-    horizon = factor(horizon, levels = horizon_order_q)
+    horizon = factor(horizon, levels = horizon_order)
   ) %>%
   group_by(horizon, method, target, dataset) %>%
   summarise(WIS_all = mean(WIS_all, na.rm = TRUE), .groups = "drop") 
@@ -231,7 +233,7 @@ ggplot(df_rel %>% filter(method != !!baseline),
   labs(
     title = paste0("Relative mWIS (Baseline: ", baseline, ")"),
     subtitle = paste0(
-      "Point Forecast Source: ", df_plot$dataset,
+      "EasyUQ (ARIMA BIC), Empirical (WEO), Linear QR (WEO) ",
       " | Target:", unique(df_plot$target)
     ),
     y = NULL,
