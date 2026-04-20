@@ -76,8 +76,8 @@ All outputs are stored in:
 
 - Separate subfolders exist for each forecasting method  
 - Each folder contains:
-  - Predictions  
-  - Evaluation results  
+  - Predictions for all target years available  
+  - Evaluation results for period 2001 - 2012
 - Results are provided for:
   - Quarterly forecasts  
   - Annual forecasts  
